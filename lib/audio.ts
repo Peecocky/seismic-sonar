@@ -14,6 +14,7 @@ interface Voice {
   filter: BiquadFilterNode;
   gain: GainNode;
   baseFreq: number;
+  magGain: number;
 }
 
 export class SonarEngine {
@@ -37,7 +38,7 @@ export class SonarEngine {
         const normalized = 1 - distance / this.radius;
         target = normalized * normalized;
       }
-      voice.gain.gain.setTargetAtTime(target * 0.9, now, 0.045);
+      voice.gain.gain.setTargetAtTime(target * voice.magGain, now, 0.045);
     }
   }
 
@@ -139,7 +140,13 @@ export class SonarEngine {
   private magToFreq(mag: number): number {
     const clamped = Math.max(4.0, Math.min(8.0, mag));
     const t = (clamped - 4.0) / 4.0;
-    return 680 - t * 560;
+    return 110 + t * 790;
+  }
+
+  private magToGain(mag: number): number {
+    const clamped = Math.max(4.0, Math.min(8.0, mag));
+    const t = (clamped - 4.0) / 4.0;
+    return 0.05 + Math.pow(t, 2.25) * 0.88;
   }
 
   private depthToCutoff(depth: number): number {
@@ -150,6 +157,7 @@ export class SonarEngine {
   private buildVoice(quake: Quake): Voice {
     const ctx = this.ctx!;
     const baseFreq = this.magToFreq(quake.mag);
+    const magGain = this.magToGain(quake.mag);
 
     const osc1 = ctx.createOscillator();
     osc1.type = 'triangle';
@@ -163,7 +171,7 @@ export class SonarEngine {
     mix.gain.value = 1;
 
     const sub = ctx.createGain();
-    sub.gain.value = Math.min(0.7, Math.max(0.08, (quake.mag - 4.5) / 2.2));
+    sub.gain.value = Math.min(0.42, Math.max(0.03, (quake.mag - 4.5) / 5.6));
 
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
@@ -180,7 +188,7 @@ export class SonarEngine {
     osc1.start();
     osc2.start();
 
-    return { osc1, osc2, filter, gain, baseFreq };
+    return { osc1, osc2, filter, gain, baseFreq, magGain };
   }
 
   private createNoiseSource(): AudioBufferSourceNode {

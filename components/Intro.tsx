@@ -46,7 +46,7 @@ export default function Intro({ onEnter, loading, language }: Props) {
           </div>
           <div className="intro-item">
             <strong>{tr(language, 'Corrected sonification', '修正的声音映射')}</strong>
-            {tr(language, 'Higher magnitude drives lower pitch, while depth shapes brightness and damping.', '震级越高音高越低，深度影响亮度和衰减。')}
+            {tr(language, 'Small earthquakes stay quiet and low; larger events rise in loudness and frequency.', '小地震更轻、更低频；明显地震会更响、频率更高。')}
           </div>
           <div className="intro-item">
             <strong>{tr(language, 'Longer memory', '更长记忆')}</strong>

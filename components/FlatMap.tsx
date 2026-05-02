@@ -40,6 +40,14 @@ interface AlarmHit {
   isNew: boolean;
 }
 
+interface AlarmTone {
+  osc: OscillatorNode;
+  lfo: OscillatorNode;
+  lfoGain: GainNode;
+  filter: BiquadFilterNode;
+  gain: GainNode;
+}
+
 const world = feature((countries as any), (countries as any).objects.countries) as any;
 const LIVE_FEED_URL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson';
 
@@ -58,6 +66,7 @@ export default function FlatMap({
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const alarmAudioRef = useRef<AudioContext | null>(null);
+  const alarmTonesRef = useRef<Map<string, AlarmTone>>(new Map());
   const knownLiveIdsRef = useRef<Set<string>>(new Set());
   const alarmZonesRef = useRef<AlarmZone[]>([]);
   const liveMinMagRef = useRef(2.5);
@@ -72,6 +81,7 @@ export default function FlatMap({
   const [liveUpdatedAt, setLiveUpdatedAt] = useState<number | null>(null);
   const [alarmZones, setAlarmZones] = useState<AlarmZone[]>([]);
   const [alarmHits, setAlarmHits] = useState<AlarmHit[]>([]);
+  const [dismissedAlarmIds, setDismissedAlarmIds] = useState<Set<string>>(new Set());
   const [monitorOpen, setMonitorOpen] = useState(false);
 
   useEffect(() => {
@@ -144,6 +154,102 @@ export default function FlatMap({
       });
     } catch {}
   }, [ensureAlarmAudio]);
+
+  const activeAlarmHits = useMemo(
+    () => alarmHits.filter((hit) => !dismissedAlarmIds.has(hit.quake.id) && alarmZones.some((zone) => zone.id === hit.zone.id)),
+    [alarmHits, alarmZones, dismissedAlarmIds]
+  );
+
+  const alarmSoundHits = useMemo(() => {
+    const byQuake = new Map<string, AlarmHit>();
+    for (const hit of activeAlarmHits) {
+      const current = byQuake.get(hit.quake.id);
+      if (!current || hit.quake.mag > current.quake.mag || hit.distanceKm < current.distanceKm) {
+        byQuake.set(hit.quake.id, hit);
+      }
+    }
+    return [...byQuake.values()].sort((a, b) => b.quake.mag - a.quake.mag || b.quake.time - a.quake.time);
+  }, [activeAlarmHits]);
+
+  const alarmedLiveIds = useMemo(() => new Set(alarmSoundHits.map((hit) => hit.quake.id)), [alarmSoundHits]);
+
+  const dismissAlarmQuake = useCallback(
+    (quake: Quake) => {
+      setDismissedAlarmIds((ids) => {
+        const next = new Set(ids);
+        next.add(quake.id);
+        return next;
+      });
+      onSelect(quake);
+    },
+    [onSelect]
+  );
+
+  useEffect(() => {
+    const primary = alarmSoundHits[0]?.quake;
+    if (!primary) return;
+    onHover(primary);
+    if (selectedId !== primary.id) onSelect(primary);
+    if (!probeLocked) {
+      setProbe(null);
+      onProbe(null, new Map());
+    } else if (probe) {
+      onProbe(probe, new Map());
+    }
+  }, [alarmSoundHits, onHover, onProbe, onSelect, probe, probeLocked, selectedId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncAlarmTones = async () => {
+      const tones = alarmTonesRef.current;
+      const active = liveEnabled ? new Map(alarmSoundHits.slice(0, 4).map((hit) => [hit.quake.id, hit])) : new Map<string, AlarmHit>();
+
+      for (const [id, tone] of tones) {
+        if (!active.has(id)) {
+          stopAlarmTone(tone);
+          tones.delete(id);
+        }
+      }
+
+      if (active.size === 0) return;
+
+      try {
+        const ctx = await ensureAlarmAudio();
+        if (cancelled) return;
+        let index = 0;
+        for (const [id, hit] of active) {
+          const freq = magToAlarmFreq(hit.quake.mag) * (1 + index * 0.018);
+          const gain = magToAlarmGain(hit.quake.mag);
+          const wobble = 1.2 + Math.min(6, Math.max(0, hit.quake.mag));
+          const cutoff = 680 + Math.max(0, hit.quake.mag) * 760;
+          const existing = tones.get(id);
+          if (existing) {
+            existing.osc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.08);
+            existing.gain.gain.setTargetAtTime(gain, ctx.currentTime, 0.08);
+            existing.lfo.frequency.setTargetAtTime(wobble, ctx.currentTime, 0.08);
+            existing.lfoGain.gain.setTargetAtTime(gain * 0.35, ctx.currentTime, 0.08);
+            existing.filter.frequency.setTargetAtTime(cutoff, ctx.currentTime, 0.08);
+          } else {
+            tones.set(id, createAlarmTone(ctx, freq, gain, wobble, cutoff));
+          }
+          index += 1;
+        }
+      } catch {}
+    };
+
+    syncAlarmTones();
+    return () => {
+      cancelled = true;
+    };
+  }, [alarmSoundHits, ensureAlarmAudio, liveEnabled]);
+
+  useEffect(() => {
+    return () => {
+      for (const tone of alarmTonesRef.current.values()) stopAlarmTone(tone);
+      alarmTonesRef.current.clear();
+    };
+  }, []);
 
   const fetchLiveQuakes = useCallback(async () => {
     setLiveStatus('fetching');
@@ -233,11 +339,11 @@ export default function FlatMap({
             x: projected[0],
             y: projected[1],
             r: 4 + Math.max(0, quake.mag) * 1.15,
-            alarmed: alarmZones.some((zone) => quake.mag >= Math.max(zone.minMag, liveMinMag) && haversineKm(zone.lat, zone.lon, quake.lat, quake.lon) <= zone.radiusKm),
+            alarmed: alarmedLiveIds.has(quake.id),
           };
         })
         .filter(Boolean) as Array<{ quake: Quake; x: number; y: number; r: number; alarmed: boolean }>,
-    [alarmZones, liveMinMag, liveQuakes, projection]
+    [alarmedLiveIds, liveQuakes, projection]
   );
 
   const updateProbeFromEvent = (event: MouseEvent<SVGSVGElement>) => {
@@ -277,6 +383,10 @@ export default function FlatMap({
         width={size.width}
         height={size.height}
         onClick={(event) => {
+          if (alarmSoundHits.length > 0) {
+            onHover(alarmSoundHits[0].quake);
+            return;
+          }
           if (selectedId) {
             onSelect(null);
             return;
@@ -289,10 +399,12 @@ export default function FlatMap({
           if (!nextLocked) setProbe(null);
         }}
         onMouseMove={(event) => {
+          if (alarmSoundHits.length > 0) return;
           if (probeLocked) return;
           updateProbeFromEvent(event);
         }}
         onMouseLeave={() => {
+          if (alarmSoundHits.length > 0) return;
           if (probeLocked) return;
           setProbe(null);
           onHover(null);
@@ -326,13 +438,17 @@ export default function FlatMap({
                   stroke={active ? '#d5fff1' : 'rgba(8,17,16,0.5)'}
                   strokeWidth={active ? 1.6 : 0.8}
                   onMouseEnter={() => {
-                    if (!selectedId) onHover(quake);
+                    if (!selectedId && alarmSoundHits.length === 0) onHover(quake);
                   }}
                   onMouseLeave={() => {
-                    if (!selectedId) onHover(null);
+                    if (!selectedId && alarmSoundHits.length === 0) onHover(null);
                   }}
                   onClick={(event) => {
                     event.stopPropagation();
+                    if (alarmSoundHits.length > 0) {
+                      onHover(alarmSoundHits[0].quake);
+                      return;
+                    }
                     onSelect(quake);
                   }}
                 />
@@ -341,8 +457,28 @@ export default function FlatMap({
           })}
 
           {livePoints.map(({ quake, x, y, r, alarmed }) => (
-            <g key={`live-${quake.id}`}>
-              {alarmed && <circle className="live-quake-pulse" cx={x} cy={y} r={r + 8} />}
+            <g
+              key={`live-${quake.id}`}
+              className="live-quake-hit"
+              onMouseEnter={() => {
+                if (!selectedId && (alarmed || alarmSoundHits.length === 0)) onHover(quake);
+              }}
+              onMouseLeave={() => {
+                if (!selectedId && !alarmed && alarmSoundHits.length === 0) onHover(null);
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (alarmed) dismissAlarmQuake(quake);
+                else onSelect(quake);
+              }}
+            >
+              {alarmed && (
+                <>
+                  <circle className="flat-hover-ring outer" cx={x} cy={y} r={r + 14} />
+                  <circle className="flat-hover-ring inner" cx={x} cy={y} r={r + 6} />
+                  <circle className="live-quake-pulse" cx={x} cy={y} r={r + 8} />
+                </>
+              )}
               <circle className={`live-quake ${alarmed ? 'alarmed' : ''}`} cx={x} cy={y} r={r} />
             </g>
           ))}
@@ -350,8 +486,8 @@ export default function FlatMap({
       </svg>
 
       {!monitorOpen && (
-        <button type="button" className={`live-monitor-fab ${alarmHits.length > 0 ? 'alerting' : ''}`} onClick={() => setMonitorOpen(true)}>
-          <span>{alarmHits.length > 0 ? alarmHits.length : liveQuakes.length}</span>
+        <button type="button" className={`live-monitor-fab ${activeAlarmHits.length > 0 ? 'alerting' : ''}`} onClick={() => setMonitorOpen(true)}>
+          <span>{activeAlarmHits.length > 0 ? activeAlarmHits.length : liveQuakes.length}</span>
           {tr(language, 'Live', '监控')}
         </button>
       )}
@@ -398,10 +534,10 @@ export default function FlatMap({
           <span>{tr(language, 'Alarm areas', '警报区域')}: {alarmZones.length}</span>
         </div>
 
-        {alarmHits.length > 0 && (
+        {activeAlarmHits.length > 0 && (
           <div className="live-alert-list">
-            {alarmHits.map((hit) => (
-              <button key={`${hit.zone.id}-${hit.quake.id}`} type="button" className="live-alert" onClick={() => onSelect(hit.quake)}>
+            {activeAlarmHits.map((hit) => (
+              <button key={`${hit.zone.id}-${hit.quake.id}`} type="button" className="live-alert" onClick={() => dismissAlarmQuake(hit.quake)}>
                 <strong>{hit.zone.label}</strong>
                 <span>M{hit.quake.mag.toFixed(1)} · {hit.quake.place}</span>
                 <em>{Math.round(hit.distanceKm)} km · {new Date(hit.quake.time).toLocaleTimeString()}</em>
@@ -428,6 +564,56 @@ export default function FlatMap({
       </div>
     </div>
   );
+}
+
+function magToAlarmFreq(mag: number) {
+  const clamped = Math.max(0, Math.min(7.5, mag));
+  const t = clamped / 7.5;
+  return 105 + Math.pow(t, 1.35) * 980;
+}
+
+function magToAlarmGain(mag: number) {
+  const clamped = Math.max(0, Math.min(7.5, mag));
+  const t = clamped / 7.5;
+  return 0.012 + Math.pow(t, 2.45) * 0.24;
+}
+
+function createAlarmTone(ctx: AudioContext, freq: number, gainValue: number, wobble: number, cutoff: number): AlarmTone {
+  const osc = ctx.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.value = freq;
+
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = wobble;
+
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = gainValue * 0.35;
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = cutoff;
+  filter.Q.value = 1.1;
+
+  const gain = ctx.createGain();
+  gain.gain.value = 0.0001;
+
+  osc.connect(filter).connect(gain).connect(ctx.destination);
+  lfo.connect(lfoGain).connect(gain.gain);
+  osc.start();
+  lfo.start();
+  gain.gain.setTargetAtTime(gainValue, ctx.currentTime, 0.08);
+
+  return { osc, lfo, lfoGain, filter, gain };
+}
+
+function stopAlarmTone(tone: AlarmTone) {
+  const now = tone.gain.context.currentTime;
+  tone.gain.gain.setTargetAtTime(0.0001, now, 0.04);
+  try {
+    tone.osc.stop(now + 0.16);
+    tone.lfo.stop(now + 0.16);
+  } catch {}
 }
 
 function haversineKm(latA: number, lonA: number, latB: number, lonB: number) {

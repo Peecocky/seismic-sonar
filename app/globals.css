@@ -553,7 +553,11 @@ select {
   stroke: #ffffff;
   stroke-width: 1;
   opacity: 0.86;
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.live-quake-hit {
+  cursor: pointer;
 }
 
 .live-quake.alarmed {

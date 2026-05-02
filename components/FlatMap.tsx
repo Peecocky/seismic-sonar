@@ -33,6 +33,13 @@ interface AlarmZone {
   label: string;
 }
 
+interface AlarmHit {
+  quake: Quake;
+  zone: AlarmZone;
+  distanceKm: number;
+  isNew: boolean;
+}
+
 const world = feature((countries as any), (countries as any).objects.countries) as any;
 const LIVE_FEED_URL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson';
 
@@ -64,7 +71,8 @@ export default function FlatMap({
   const [liveStatus, setLiveStatus] = useState<'idle' | 'fetching' | 'ok' | 'error'>('idle');
   const [liveUpdatedAt, setLiveUpdatedAt] = useState<number | null>(null);
   const [alarmZones, setAlarmZones] = useState<AlarmZone[]>([]);
-  const [lastAlarm, setLastAlarm] = useState<Quake | null>(null);
+  const [alarmHits, setAlarmHits] = useState<AlarmHit[]>([]);
+  const [monitorOpen, setMonitorOpen] = useState(false);
 
   useEffect(() => {
     alarmZonesRef.current = alarmZones;
@@ -157,26 +165,16 @@ export default function FlatMap({
         .sort((a, b) => a.time - b.time) as Quake[];
 
       const known = knownLiveIdsRef.current;
-      const firstLoad = known.size === 0;
-      const newMatches = firstLoad
-        ? []
-        : nextQuakes.filter(
-            (quake) =>
-              !known.has(quake.id) &&
-              alarmZonesRef.current.some(
-                (zone) =>
-                  quake.mag >= Math.max(zone.minMag, liveMinMagRef.current) &&
-                  haversineKm(zone.lat, zone.lon, quake.lat, quake.lon) <= zone.radiusKm
-              )
-          );
+      const hits = findAlarmHits(nextQuakes, alarmZonesRef.current, liveMinMagRef.current, known);
 
       nextQuakes.forEach((quake) => known.add(quake.id));
       setLiveQuakes(nextQuakes);
+      setAlarmHits(hits.slice(0, 8));
       setLiveUpdatedAt(Date.now());
       setLiveStatus('ok');
 
-      if (newMatches.length > 0) {
-        setLastAlarm(newMatches[newMatches.length - 1]);
+      if (hits.length > 0) setMonitorOpen(true);
+      if (hits.some((hit) => hit.isNew)) {
         await playAlarm();
       }
     } catch {
@@ -269,6 +267,7 @@ export default function FlatMap({
       },
     ]);
     if (!liveEnabled) setLiveEnabled(true);
+    window.setTimeout(fetchLiveQuakes, 50);
   };
 
   return (
@@ -350,7 +349,14 @@ export default function FlatMap({
         </g>
       </svg>
 
-      <div className="live-monitor">
+      {!monitorOpen && (
+        <button type="button" className={`live-monitor-fab ${alarmHits.length > 0 ? 'alerting' : ''}`} onClick={() => setMonitorOpen(true)}>
+          <span>{alarmHits.length > 0 ? alarmHits.length : liveQuakes.length}</span>
+          {tr(language, 'Live', '监控')}
+        </button>
+      )}
+
+      {monitorOpen && <div className="live-monitor">
         <div className="live-monitor-head">
           <div>
             <strong>{tr(language, 'Live Monitor', '实时监控')}</strong>
@@ -362,6 +368,9 @@ export default function FlatMap({
                   : tr(language, 'USGS past-hour feed', 'USGS 过去 1 小时')}
             </span>
           </div>
+          <button type="button" className="live-collapse" onClick={() => setMonitorOpen(false)} aria-label={tr(language, 'Hide monitor', '隐藏监控')}>
+            -
+          </button>
           <button type="button" className={`live-toggle ${liveEnabled ? 'on' : ''}`} onClick={() => setLiveEnabled((value) => !value)}>
             {liveEnabled ? tr(language, 'On', '开') : tr(language, 'Off', '关')}
           </button>
@@ -389,10 +398,16 @@ export default function FlatMap({
           <span>{tr(language, 'Alarm areas', '警报区域')}: {alarmZones.length}</span>
         </div>
 
-        {lastAlarm && (
-          <button type="button" className="live-alert" onClick={() => onSelect(lastAlarm)}>
-            {tr(language, 'Alarm', '警报')}: M{lastAlarm.mag.toFixed(1)} · {lastAlarm.place}
-          </button>
+        {alarmHits.length > 0 && (
+          <div className="live-alert-list">
+            {alarmHits.map((hit) => (
+              <button key={`${hit.zone.id}-${hit.quake.id}`} type="button" className="live-alert" onClick={() => onSelect(hit.quake)}>
+                <strong>{hit.zone.label}</strong>
+                <span>M{hit.quake.mag.toFixed(1)} · {hit.quake.place}</span>
+                <em>{Math.round(hit.distanceKm)} km · {new Date(hit.quake.time).toLocaleTimeString()}</em>
+              </button>
+            ))}
+          </div>
         )}
 
         {alarmZones.length > 0 && (
@@ -406,7 +421,7 @@ export default function FlatMap({
         )}
 
         {liveStatus === 'error' && <div className="live-error">{tr(language, 'Live feed unavailable. Try refresh.', '实时数据不可用，请刷新。')}</div>}
-      </div>
+      </div>}
 
       <div className="globe-hud">
         <div className="mono-caps">{tr(language, '2D map mode · wheel to zoom · click to lock probe', '2D 地图 · 滚轮缩放 · 点击锁定探针')}</div>
@@ -425,4 +440,18 @@ function haversineKm(latA: number, lonA: number, latB: number, lonB: number) {
     Math.sin(dPhi / 2) * Math.sin(dPhi / 2) +
     Math.cos(phiA) * Math.cos(phiB) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
   return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * KM_PER_RADIAN;
+}
+
+function findAlarmHits(quakes: Quake[], zones: AlarmZone[], globalMinMag: number, known: Set<string>): AlarmHit[] {
+  const hits: AlarmHit[] = [];
+  for (const quake of quakes) {
+    for (const zone of zones) {
+      if (quake.mag < Math.max(zone.minMag, globalMinMag)) continue;
+      const distanceKm = haversineKm(zone.lat, zone.lon, quake.lat, quake.lon);
+      if (distanceKm <= zone.radiusKm) {
+        hits.push({ quake, zone, distanceKm, isNew: !known.has(quake.id) });
+      }
+    }
+  }
+  return hits.sort((a, b) => b.quake.time - a.quake.time);
 }

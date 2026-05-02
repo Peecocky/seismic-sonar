@@ -371,6 +371,44 @@ select {
   backdrop-filter: blur(10px);
 }
 
+.live-monitor-fab {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 38%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  color: var(--paper);
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(20, 40, 45, 0.14);
+}
+
+.live-monitor-fab span {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--cyan);
+  color: #fff;
+  font-size: 11px;
+}
+
+.live-monitor-fab.alerting {
+  border-color: rgba(207, 63, 50, 0.7);
+  color: var(--crimson);
+}
+
+.live-monitor-fab.alerting span {
+  background: var(--crimson);
+}
+
 .live-monitor-head {
   display: flex;
   align-items: center;
@@ -405,6 +443,15 @@ select {
   text-transform: uppercase;
   font-size: 10px;
   letter-spacing: 0.08em;
+}
+
+.live-collapse {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--paper);
+  cursor: pointer;
 }
 
 .live-toggle.on {
@@ -449,7 +496,16 @@ select {
   cursor: default;
 }
 
+.live-alert-list {
+  display: grid;
+  gap: 6px;
+  max-height: 132px;
+  overflow: auto;
+}
+
 .live-alert {
+  display: grid;
+  gap: 2px;
   padding: 9px 10px;
   border: 1px solid rgba(207, 63, 50, 0.45);
   background: rgba(207, 63, 50, 0.1);
@@ -457,6 +513,16 @@ select {
   cursor: pointer;
   text-align: left;
   font-size: 11px;
+}
+
+.live-alert span {
+  color: var(--paper);
+}
+
+.live-alert em {
+  color: var(--paper-dim);
+  font-size: 10px;
+  font-style: normal;
 }
 
 .alarm-list {

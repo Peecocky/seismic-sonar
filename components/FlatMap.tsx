@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import * as d3 from 'd3';
 import { feature } from 'topojson-client';
@@ -24,7 +24,17 @@ interface FlatMapProps {
   language: Language;
 }
 
+interface AlarmZone {
+  id: string;
+  lat: number;
+  lon: number;
+  radiusKm: number;
+  minMag: number;
+  label: string;
+}
+
 const world = feature((countries as any), (countries as any).objects.countries) as any;
+const LIVE_FEED_URL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson';
 
 export default function FlatMap({
   quakes,
@@ -40,9 +50,29 @@ export default function FlatMap({
 }: FlatMapProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const alarmAudioRef = useRef<AudioContext | null>(null);
+  const knownLiveIdsRef = useRef<Set<string>>(new Set());
+  const alarmZonesRef = useRef<AlarmZone[]>([]);
+  const liveMinMagRef = useRef(2.5);
+
   const [size, setSize] = useState({ width: 1000, height: 560 });
   const [probe, setProbe] = useState<GlobeProbePoint | null>(null);
   const [zoomTransform, setZoomTransform] = useState(d3.zoomIdentity);
+  const [liveEnabled, setLiveEnabled] = useState(false);
+  const [liveMinMag, setLiveMinMag] = useState(2.5);
+  const [liveQuakes, setLiveQuakes] = useState<Quake[]>([]);
+  const [liveStatus, setLiveStatus] = useState<'idle' | 'fetching' | 'ok' | 'error'>('idle');
+  const [liveUpdatedAt, setLiveUpdatedAt] = useState<number | null>(null);
+  const [alarmZones, setAlarmZones] = useState<AlarmZone[]>([]);
+  const [lastAlarm, setLastAlarm] = useState<Quake | null>(null);
+
+  useEffect(() => {
+    alarmZonesRef.current = alarmZones;
+  }, [alarmZones]);
+
+  useEffect(() => {
+    liveMinMagRef.current = liveMinMag;
+  }, [liveMinMag]);
 
   useEffect(() => {
     if (!wrapRef.current) return;
@@ -81,12 +111,101 @@ export default function FlatMap({
     d3.select(svgRef.current).call(zoom as any);
   }, [size.height, size.width]);
 
+  const ensureAlarmAudio = useCallback(async () => {
+    const AC = window.AudioContext || (window as any).webkitAudioContext;
+    if (!alarmAudioRef.current) alarmAudioRef.current = new AC();
+    if (alarmAudioRef.current.state === 'suspended') await alarmAudioRef.current.resume();
+    return alarmAudioRef.current;
+  }, []);
+
+  const playAlarm = useCallback(async () => {
+    try {
+      const ctx = await ensureAlarmAudio();
+      const now = ctx.currentTime;
+      [0, 0.22].forEach((offset) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now + offset);
+        gain.gain.setValueAtTime(0.0001, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.22, now + offset + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.16);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.18);
+      });
+    } catch {}
+  }, [ensureAlarmAudio]);
+
+  const fetchLiveQuakes = useCallback(async () => {
+    setLiveStatus('fetching');
+    try {
+      const res = await fetch(LIVE_FEED_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`USGS ${res.status}`);
+      const raw = await res.json();
+      const nextQuakes = ((raw.features || []) as any[])
+        .map((featureItem) => ({
+          id: String(featureItem.id),
+          mag: Number(featureItem.properties?.mag),
+          place: String(featureItem.properties?.place ?? 'Unknown'),
+          time: Number(featureItem.properties?.time),
+          lon: Number(featureItem.geometry?.coordinates?.[0]),
+          lat: Number(featureItem.geometry?.coordinates?.[1]),
+          depth: Number(featureItem.geometry?.coordinates?.[2] ?? 0),
+        }))
+        .filter((quake) => Number.isFinite(quake.mag) && Number.isFinite(quake.lat) && Number.isFinite(quake.lon) && quake.mag >= liveMinMagRef.current)
+        .sort((a, b) => a.time - b.time) as Quake[];
+
+      const known = knownLiveIdsRef.current;
+      const firstLoad = known.size === 0;
+      const newMatches = firstLoad
+        ? []
+        : nextQuakes.filter(
+            (quake) =>
+              !known.has(quake.id) &&
+              alarmZonesRef.current.some(
+                (zone) =>
+                  quake.mag >= Math.max(zone.minMag, liveMinMagRef.current) &&
+                  haversineKm(zone.lat, zone.lon, quake.lat, quake.lon) <= zone.radiusKm
+              )
+          );
+
+      nextQuakes.forEach((quake) => known.add(quake.id));
+      setLiveQuakes(nextQuakes);
+      setLiveUpdatedAt(Date.now());
+      setLiveStatus('ok');
+
+      if (newMatches.length > 0) {
+        setLastAlarm(newMatches[newMatches.length - 1]);
+        await playAlarm();
+      }
+    } catch {
+      setLiveStatus('error');
+    }
+  }, [playAlarm]);
+
+  useEffect(() => {
+    if (!liveEnabled) return;
+    fetchLiveQuakes();
+    const id = window.setInterval(fetchLiveQuakes, 60_000);
+    return () => window.clearInterval(id);
+  }, [fetchLiveQuakes, liveEnabled]);
+
   const path = useMemo(() => d3.geoPath(projection), [projection]);
   const graticule = useMemo(() => d3.geoGraticule10(), []);
   const probeCircle = useMemo(() => {
     if (!probe) return null;
     return d3.geoCircle().center([probe.lon, probe.lat]).radius((radiusKm / KM_PER_RADIAN) * (180 / Math.PI))();
   }, [probe, radiusKm]);
+
+  const alarmCircles = useMemo(
+    () =>
+      alarmZones.map((zone) => ({
+        zone,
+        circle: d3.geoCircle().center([zone.lon, zone.lat]).radius((zone.radiusKm / KM_PER_RADIAN) * (180 / Math.PI))(),
+      })),
+    [alarmZones]
+  );
 
   const points = useMemo(
     () =>
@@ -105,6 +224,24 @@ export default function FlatMap({
     [projection, quakes]
   );
 
+  const livePoints = useMemo(
+    () =>
+      liveQuakes
+        .map((quake) => {
+          const projected = projection([quake.lon, quake.lat]);
+          if (!projected) return null;
+          return {
+            quake,
+            x: projected[0],
+            y: projected[1],
+            r: 4 + Math.max(0, quake.mag) * 1.15,
+            alarmed: alarmZones.some((zone) => quake.mag >= Math.max(zone.minMag, liveMinMag) && haversineKm(zone.lat, zone.lon, quake.lat, quake.lon) <= zone.radiusKm),
+          };
+        })
+        .filter(Boolean) as Array<{ quake: Quake; x: number; y: number; r: number; alarmed: boolean }>,
+    [alarmZones, liveMinMag, liveQuakes, projection]
+  );
+
   const updateProbeFromEvent = (event: MouseEvent<SVGSVGElement>) => {
     const [screenX, screenY] = d3.pointer(event);
     const [x, y] = zoomTransform.invert([screenX, screenY]);
@@ -115,6 +252,23 @@ export default function FlatMap({
     setProbe(nextProbe);
     onProbe(nextProbe, buildProbeDistances(quakes, nextProbe));
     return nextProbe;
+  };
+
+  const addAlarmZone = async () => {
+    if (!probe) return;
+    await ensureAlarmAudio();
+    setAlarmZones((zones) => [
+      ...zones,
+      {
+        id: `${Date.now()}-${zones.length}`,
+        lat: probe.lat,
+        lon: probe.lon,
+        radiusKm,
+        minMag: liveMinMag,
+        label: `Alarm ${zones.length + 1}`,
+      },
+    ]);
+    if (!liveEnabled) setLiveEnabled(true);
   };
 
   return (
@@ -150,6 +304,9 @@ export default function FlatMap({
           <path d={path({ type: 'Sphere' } as any) || ''} className="flat-sphere" />
           <path d={path(graticule as any) || ''} className="flat-graticule" />
           <path d={path(world) || ''} className="flat-land" />
+          {alarmCircles.map(({ zone, circle }) => (
+            <path key={zone.id} d={path(circle as any) || ''} className="live-alarm-zone" />
+          ))}
           {probeCircle && <path d={path(probeCircle as any) || ''} className={`flat-probe-radius ${probeLocked ? 'locked' : ''}`} />}
 
           {points.map(({ quake, x, y, r }) => {
@@ -183,11 +340,89 @@ export default function FlatMap({
               </g>
             );
           })}
+
+          {livePoints.map(({ quake, x, y, r, alarmed }) => (
+            <g key={`live-${quake.id}`}>
+              {alarmed && <circle className="live-quake-pulse" cx={x} cy={y} r={r + 8} />}
+              <circle className={`live-quake ${alarmed ? 'alarmed' : ''}`} cx={x} cy={y} r={r} />
+            </g>
+          ))}
         </g>
       </svg>
+
+      <div className="live-monitor">
+        <div className="live-monitor-head">
+          <div>
+            <strong>{tr(language, 'Live Monitor', '实时监控')}</strong>
+            <span>
+              {liveStatus === 'fetching'
+                ? tr(language, 'Updating...', '更新中...')
+                : liveUpdatedAt
+                  ? tr(language, `Updated ${new Date(liveUpdatedAt).toLocaleTimeString()}`, `更新于 ${new Date(liveUpdatedAt).toLocaleTimeString()}`)
+                  : tr(language, 'USGS past-hour feed', 'USGS 过去 1 小时')}
+            </span>
+          </div>
+          <button type="button" className={`live-toggle ${liveEnabled ? 'on' : ''}`} onClick={() => setLiveEnabled((value) => !value)}>
+            {liveEnabled ? tr(language, 'On', '开') : tr(language, 'Off', '关')}
+          </button>
+        </div>
+
+        <div className="live-filter">
+          <label>
+            {tr(language, 'Set Filter', '设置筛选')}
+            <span>M{liveMinMag.toFixed(1)}+</span>
+          </label>
+          <input type="range" min={0} max={7} step={0.1} value={liveMinMag} onChange={(event) => setLiveMinMag(+event.target.value)} />
+        </div>
+
+        <div className="live-actions">
+          <button type="button" className="btn" onClick={addAlarmZone} disabled={!probe}>
+            {tr(language, 'Set Alarm', '设置警报')}
+          </button>
+          <button type="button" className="btn" onClick={fetchLiveQuakes}>
+            {tr(language, 'Refresh', '刷新')}
+          </button>
+        </div>
+
+        <div className="live-summary">
+          <span>{tr(language, 'Live events', '实时事件')}: {liveQuakes.length}</span>
+          <span>{tr(language, 'Alarm areas', '警报区域')}: {alarmZones.length}</span>
+        </div>
+
+        {lastAlarm && (
+          <button type="button" className="live-alert" onClick={() => onSelect(lastAlarm)}>
+            {tr(language, 'Alarm', '警报')}: M{lastAlarm.mag.toFixed(1)} · {lastAlarm.place}
+          </button>
+        )}
+
+        {alarmZones.length > 0 && (
+          <div className="alarm-list">
+            {alarmZones.map((zone, index) => (
+              <button key={zone.id} type="button" onClick={() => setAlarmZones((zones) => zones.filter((item) => item.id !== zone.id))}>
+                {index + 1}. M{zone.minMag.toFixed(1)}+ · {Math.round(zone.radiusKm)} km
+              </button>
+            ))}
+          </div>
+        )}
+
+        {liveStatus === 'error' && <div className="live-error">{tr(language, 'Live feed unavailable. Try refresh.', '实时数据不可用，请刷新。')}</div>}
+      </div>
+
       <div className="globe-hud">
         <div className="mono-caps">{tr(language, '2D map mode · wheel to zoom · click to lock probe', '2D 地图 · 滚轮缩放 · 点击锁定探针')}</div>
       </div>
     </div>
   );
+}
+
+function haversineKm(latA: number, lonA: number, latB: number, lonB: number) {
+  const toRad = Math.PI / 180;
+  const phiA = latA * toRad;
+  const phiB = latB * toRad;
+  const dPhi = (latB - latA) * toRad;
+  const dLambda = (lonB - lonA) * toRad;
+  const a =
+    Math.sin(dPhi / 2) * Math.sin(dPhi / 2) +
+    Math.cos(phiA) * Math.cos(phiB) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+  return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * KM_PER_RADIAN;
 }

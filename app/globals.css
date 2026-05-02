@@ -356,6 +356,153 @@ select {
   backdrop-filter: blur(8px);
 }
 
+.live-monitor {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 3;
+  width: min(340px, calc(100% - 32px));
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 34%, transparent);
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  box-shadow: 0 16px 40px rgba(20, 40, 45, 0.16);
+  backdrop-filter: blur(10px);
+}
+
+.live-monitor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.live-monitor-head div {
+  display: grid;
+  gap: 2px;
+}
+
+.live-monitor-head strong {
+  font-size: 14px;
+  color: var(--paper);
+}
+
+.live-monitor-head span,
+.live-summary,
+.live-error {
+  color: var(--paper-dim);
+  font-size: 10px;
+}
+
+.live-toggle {
+  min-width: 54px;
+  height: 28px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--paper-dim);
+  cursor: pointer;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.live-toggle.on {
+  background: var(--phosphor);
+  border-color: var(--phosphor);
+  color: #fff;
+}
+
+.live-filter {
+  display: grid;
+  gap: 7px;
+}
+
+.live-filter label,
+.live-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.live-filter label {
+  font-size: 11px;
+  color: var(--paper-dim);
+}
+
+.live-filter label span {
+  color: var(--phosphor);
+}
+
+.live-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.live-actions .btn {
+  padding: 8px 10px;
+}
+
+.live-actions .btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.live-alert {
+  padding: 9px 10px;
+  border: 1px solid rgba(207, 63, 50, 0.45);
+  background: rgba(207, 63, 50, 0.1);
+  color: var(--crimson);
+  cursor: pointer;
+  text-align: left;
+  font-size: 11px;
+}
+
+.alarm-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.alarm-list button {
+  padding: 5px 7px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 24%, transparent);
+  background: color-mix(in srgb, var(--cyan) 8%, transparent);
+  color: var(--paper);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.live-alarm-zone {
+  fill: rgba(207, 63, 50, 0.08);
+  stroke: rgba(207, 63, 50, 0.62);
+  stroke-width: 1.2;
+  stroke-dasharray: 7 4;
+  pointer-events: none;
+}
+
+.live-quake {
+  fill: #2387a7;
+  stroke: #ffffff;
+  stroke-width: 1;
+  opacity: 0.86;
+  pointer-events: none;
+}
+
+.live-quake.alarmed {
+  fill: var(--crimson);
+  stroke: #fff4b8;
+  stroke-width: 1.5;
+}
+
+.live-quake-pulse {
+  fill: rgba(207, 63, 50, 0.18);
+  stroke: rgba(207, 63, 50, 0.62);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
 .globe-guide {
   margin-top: 6px;
   font-size: 12px;

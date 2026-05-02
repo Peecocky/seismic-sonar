@@ -94,14 +94,22 @@ export default function Page() {
     };
   }, []);
 
-  const visibleQuakes = useMemo(
+  const magnitudeFilteredQuakes = useMemo(
     () =>
       quakes.filter((quake) => {
         if (quake.mag < filterMagnitude[0] || quake.mag > filterMagnitude[1]) return false;
+        return true;
+      }),
+    [quakes, filterMagnitude]
+  );
+
+  const visibleQuakes = useMemo(
+    () =>
+      magnitudeFilteredQuakes.filter((quake) => {
         if (brushRange && (quake.time < brushRange[0] || quake.time > brushRange[1])) return false;
         return true;
       }),
-    [quakes, filterMagnitude, brushRange]
+    [magnitudeFilteredQuakes, brushRange]
   );
 
   const visibleIds = useMemo(() => new Set(visibleQuakes.map((quake) => quake.id)), [visibleQuakes]);
@@ -376,7 +384,7 @@ export default function Page() {
 
         <Timeline
           quakes={visibleQuakes}
-          allQuakes={quakes}
+          allQuakes={magnitudeFilteredQuakes}
           onBrush={setBrushRange}
           onHover={setHover}
           onSelect={handleSelectQuake}

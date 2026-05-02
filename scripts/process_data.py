@@ -22,14 +22,20 @@ def main():
 
     features = raw.get("features", [])
     quakes = []
+    seen_ids = set()
     for f in features:
+        quake_id = f.get("id")
+        if quake_id in seen_ids:
+            continue
+        seen_ids.add(quake_id)
+
         p = f.get("properties", {})
         geom = f.get("geometry", {}).get("coordinates", [None, None, None])
         lon, lat, depth = geom[0], geom[1], geom[2]
         if lon is None or lat is None:
             continue
         quakes.append({
-            "id": f.get("id"),
+            "id": quake_id,
             "mag": p.get("mag"),
             "place": p.get("place"),
             "time": p.get("time"),

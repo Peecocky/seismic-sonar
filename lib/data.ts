@@ -55,6 +55,7 @@ export function formatCoord(lat: number, lon: number): string {
 }
 
 function normalizeQuakes(input: any[]): Quake[] {
+  const seenIds = new Set<string>();
   return input
     .filter(
       (q) =>
@@ -73,6 +74,11 @@ function normalizeQuakes(input: any[]): Quake[] {
       lat: Number(q.lat),
       depth: Number(q.depth ?? 0),
     }))
+    .filter((quake) => {
+      if (seenIds.has(quake.id)) return false;
+      seenIds.add(quake.id);
+      return true;
+    })
     .sort((a, b) => a.time - b.time);
 }
 

@@ -10,6 +10,7 @@ import { tr } from '@/lib/ui';
 interface Props {
   quakes: Quake[];
   allQuakes: Quake[];
+  filterMagnitude: [number, number];
   onBrush: (range: [number, number] | null) => void;
   onHover: (q: Quake | null) => void;
   onSelect: (q: Quake | null) => void;
@@ -18,12 +19,16 @@ interface Props {
   brushRange: [number, number] | null;
   onTogglePlayback: () => void;
   playbackRunning: boolean;
+  playbackSpeed: number;
+  onPlaybackSpeed: (speed: number) => void;
+  onStepPlayback: (direction: -1 | 1) => void;
   language: Language;
 }
 
 export default function Timeline({
   quakes,
   allQuakes,
+  filterMagnitude,
   onBrush,
   onHover,
   onSelect,
@@ -32,11 +37,15 @@ export default function Timeline({
   brushRange,
   onTogglePlayback,
   playbackRunning,
+  playbackSpeed,
+  onPlaybackSpeed,
+  onStepPlayback,
   language,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const brushRef = useRef<d3.BrushBehavior<unknown> | null>(null);
+  const lastWheelStepRef = useRef(0);
   const [size, setSize] = useState({ w: 1000, h: 240 });
 
   useEffect(() => {
@@ -67,8 +76,8 @@ export default function Timeline({
     [extent, plotW]
   );
   const yScale = useMemo(
-    () => d3.scaleLinear().domain([4.5, 8]).range([plotH, 0]),
-    [plotH]
+    () => d3.scaleLinear().domain([filterMagnitude[0], 8]).range([plotH, 0]),
+    [plotH, filterMagnitude]
   );
 
   const histogram = useMemo(() => {
@@ -132,14 +141,41 @@ export default function Timeline({
   }, [brushRange, plotW, xScale]);
 
   return (
-    <div ref={wrapRef} className="timeline tour-target-timeline" style={{ width: '100%' }}>
+    <div
+      ref={wrapRef}
+      className="timeline tour-target-timeline"
+      style={{ width: '100%' }}
+      onWheel={(event) => {
+        if (playbackRunning || Math.abs(event.deltaY) < 4 || Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
+        event.preventDefault();
+        const now = performance.now();
+        if (now - lastWheelStepRef.current < 140) return;
+        lastWheelStepRef.current = now;
+        onStepPlayback(event.deltaY < 0 ? -1 : 1);
+      }}
+    >
       <div className="timeline-label">{tr(language, 'Temporal distribution · click again to clear selection · brush overview below', '时间分布 · 再次点击取消选择 · 下方刷选范围')}</div>
-      <button type="button" className={`timeline-play ${playbackRunning ? 'on' : ''}`} onClick={onTogglePlayback}>
-        {playbackRunning ? tr(language, 'Stop', '停止') : tr(language, 'Play', '播放')}
-      </button>
+      <div className="timeline-controls">
+        <label className="timeline-speed">
+          <span>{tr(language, 'Speed', '速度')}</span>
+          <input
+            type="range"
+            min="0.25"
+            max="2"
+            step="0.25"
+            value={playbackSpeed}
+            onChange={(event) => onPlaybackSpeed(Number(event.target.value))}
+            aria-label={tr(language, 'Playback speed', '播放速度')}
+          />
+          <strong>{playbackSpeed.toFixed(2).replace(/\.00$/, '')}x</strong>
+        </label>
+        <button type="button" className={`timeline-play ${playbackRunning ? 'on' : ''}`} onClick={onTogglePlayback}>
+          {playbackRunning ? tr(language, 'Stop', '停止') : tr(language, 'Play', '播放')}
+        </button>
+      </div>
       <svg ref={svgRef} width={size.w} height={size.h}>
         <g transform={`translate(${margin.left},${margin.top})`}>
-          {[4.5, 5, 5.5, 6, 6.5, 7].map((magnitude) => (
+          {d3.range(Math.ceil(filterMagnitude[0] * 2) / 2, 8, 0.5).map((magnitude) => (
             <line
               key={magnitude}
               x1={0}

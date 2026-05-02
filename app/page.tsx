@@ -34,6 +34,7 @@ export default function Page() {
   const [history, setHistory] = useState<Quake[]>([]);
   const [alignSignal, setAlignSignal] = useState(0);
   const [playbackRunning, setPlaybackRunning] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(0.75);
   const [themeMode, setThemeMode] = useState<ThemeMode>('auto');
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolveTheme('auto'));
   const [language, setLanguage] = useState<Language>('en');
@@ -113,6 +114,7 @@ export default function Page() {
   );
 
   const visibleIds = useMemo(() => new Set(visibleQuakes.map((quake) => quake.id)), [visibleQuakes]);
+  const temporalQuakes = useMemo(() => [...visibleQuakes].sort((a, b) => a.time - b.time), [visibleQuakes]);
 
   const mapQuakes = useMemo(() => {
     const merged = new Map(visibleQuakes.map((quake) => [quake.id, quake]));
@@ -207,6 +209,13 @@ export default function Page() {
     [selected]
   );
 
+  const selectTimelineQuake = useCallback((quake: Quake) => {
+    setMapMode('3d');
+    setSelected(quake);
+    setHover(quake);
+    setHistory((items) => [quake, ...items.filter((item) => item.id !== quake.id)].slice(0, 10));
+  }, []);
+
   const stopPlayback = useCallback(() => {
     if (playbackTimeoutRef.current !== null) {
       window.clearTimeout(playbackTimeoutRef.current);
@@ -216,10 +225,7 @@ export default function Page() {
   }, []);
 
   const startPlayback = useCallback(() => {
-    const range = brushRange;
-    const playlist = visibleQuakes
-      .filter((quake) => !range || (quake.time >= range[0] && quake.time <= range[1]))
-      .sort((a, b) => a.time - b.time);
+    const playlist = temporalQuakes;
     if (playlist.length === 0) return;
 
     stopPlayback();
@@ -229,27 +235,63 @@ export default function Page() {
     let index = 0;
     const tick = () => {
       const quake = playlist[index];
-      setSelected(quake);
-      setHover(quake);
-      setHistory((items) => [quake, ...items.filter((item) => item.id !== quake.id)].slice(0, 10));
+      selectTimelineQuake(quake);
       index += 1;
       if (index >= playlist.length) {
         playbackTimeoutRef.current = window.setTimeout(() => {
           setPlaybackRunning(false);
           playbackTimeoutRef.current = null;
-        }, 900);
+        }, Math.round(900 / playbackSpeed));
         return;
       }
-      playbackTimeoutRef.current = window.setTimeout(tick, 900);
+      playbackTimeoutRef.current = window.setTimeout(tick, Math.round(900 / playbackSpeed));
     };
 
     tick();
-  }, [brushRange, stopPlayback, visibleQuakes]);
+  }, [playbackSpeed, selectTimelineQuake, stopPlayback, temporalQuakes]);
 
   const togglePlayback = useCallback(() => {
     if (playbackRunning) stopPlayback();
     else startPlayback();
   }, [playbackRunning, startPlayback, stopPlayback]);
+
+  const stepTimelineSelection = useCallback(
+    (direction: -1 | 1) => {
+      if (playbackRunning || temporalQuakes.length === 0) return;
+
+      const currentId = selected?.id ?? hover?.id ?? null;
+      const currentIndex = currentId ? temporalQuakes.findIndex((quake) => quake.id === currentId) : -1;
+      const nextIndex =
+        currentIndex === -1
+          ? direction > 0
+            ? 0
+            : temporalQuakes.length - 1
+          : Math.max(0, Math.min(temporalQuakes.length - 1, currentIndex + direction));
+
+      selectTimelineQuake(temporalQuakes[nextIndex]);
+    },
+    [hover, playbackRunning, selectTimelineQuake, selected, temporalQuakes]
+  );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (playbackRunning || introOpen || instructionOpen) return;
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName.toLowerCase();
+      if (target?.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select') return;
+
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        stepTimelineSelection(-1);
+      } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        stepTimelineSelection(1);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [introOpen, instructionOpen, playbackRunning, stepTimelineSelection]);
 
   useEffect(() => {
     return () => {
@@ -385,6 +427,7 @@ export default function Page() {
         <Timeline
           quakes={visibleQuakes}
           allQuakes={magnitudeFilteredQuakes}
+          filterMagnitude={filterMagnitude}
           onBrush={setBrushRange}
           onHover={setHover}
           onSelect={handleSelectQuake}
@@ -393,6 +436,9 @@ export default function Page() {
           brushRange={brushRange}
           onTogglePlayback={togglePlayback}
           playbackRunning={playbackRunning}
+          playbackSpeed={playbackSpeed}
+          onPlaybackSpeed={setPlaybackSpeed}
+          onStepPlayback={stepTimelineSelection}
           language={language}
         />
       </div>

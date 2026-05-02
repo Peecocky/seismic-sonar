@@ -861,17 +861,51 @@ input[type='range']::-moz-range-thumb {
   position: absolute;
   top: 10px;
   left: 22px;
+  right: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 9px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--paper-dim);
 }
 
-.timeline-play {
+.timeline-controls {
   position: absolute;
   top: 8px;
   right: 22px;
   z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.timeline-speed {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+}
+
+.timeline-speed input {
+  width: 82px;
+  accent-color: var(--phosphor);
+}
+
+.timeline-speed strong {
+  min-width: 32px;
+  color: var(--paper);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.timeline-play {
   padding: 6px 10px;
   border: 1px solid var(--rule);
   background: var(--panel);
@@ -1242,6 +1276,18 @@ input[type='range']::-moz-range-thumb {
 
   .timeline-label {
     left: 18px;
+    right: 18px;
+    top: 42px;
+  }
+
+  .timeline-controls {
+    left: 18px;
+    right: 18px;
+    justify-content: space-between;
+  }
+
+  .timeline-speed input {
+    width: min(82px, 24vw);
   }
 
   .intro-card {

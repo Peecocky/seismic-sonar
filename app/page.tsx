@@ -371,6 +371,7 @@ export default function Page() {
             >
               i
             </button>
+            <span className="tutorial-hint">{tr(language, 'Tutorial', '教程')}</span>
           </div>
           <div className="right">
             <span className="blink-dot" />

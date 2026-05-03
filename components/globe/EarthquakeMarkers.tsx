@@ -13,6 +13,10 @@ interface EarthquakeMarkersProps {
   onHover: (quake: Quake | null) => void;
   onSelect: (quake: Quake) => void;
   onProbePoint: (event: ThreeEvent<PointerEvent>) => void;
+  onPinProbePoint: (event: ThreeEvent<MouseEvent>) => void;
+  onPinPressStart: (event: ThreeEvent<PointerEvent>) => void;
+  onPinPressCancel: () => void;
+  shouldSuppressClick: () => boolean;
 }
 
 export default function EarthquakeMarkers({
@@ -22,6 +26,10 @@ export default function EarthquakeMarkers({
   onHover,
   onSelect,
   onProbePoint,
+  onPinProbePoint,
+  onPinPressStart,
+  onPinPressCancel,
+  shouldSuppressClick,
 }: EarthquakeMarkersProps) {
   const markers = useMemo(
     () =>
@@ -60,12 +68,24 @@ export default function EarthquakeMarkers({
                 event.stopPropagation();
                 onProbePoint(event);
               }}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                onPinPressStart(event);
+              }}
+              onPointerUp={onPinPressCancel}
+              onPointerCancel={onPinPressCancel}
               onPointerLeave={(event) => {
                 event.stopPropagation();
+                onPinPressCancel();
                 if (!selectedId) onHover(null);
               }}
               onClick={(event) => {
                 event.stopPropagation();
+                if (event.nativeEvent.shiftKey) {
+                  onPinProbePoint(event);
+                  return;
+                }
+                if (shouldSuppressClick()) return;
                 onSelect(quake);
               }}
             >
@@ -83,12 +103,24 @@ export default function EarthquakeMarkers({
                 event.stopPropagation();
                 onProbePoint(event);
               }}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                onPinPressStart(event);
+              }}
+              onPointerUp={onPinPressCancel}
+              onPointerCancel={onPinPressCancel}
               onPointerLeave={(event) => {
                 event.stopPropagation();
+                onPinPressCancel();
                 if (!selectedId) onHover(null);
               }}
               onClick={(event) => {
                 event.stopPropagation();
+                if (event.nativeEvent.shiftKey) {
+                  onPinProbePoint(event);
+                  return;
+                }
+                if (shouldSuppressClick()) return;
                 onSelect(quake);
               }}
             >

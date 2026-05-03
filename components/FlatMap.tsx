@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { MouseEvent } from 'react';
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import * as d3 from 'd3';
 import { feature } from 'topojson-client';
 import countries from 'world-atlas/countries-110m.json';
@@ -50,6 +50,8 @@ interface AlarmTone {
 
 const world = feature((countries as any), (countries as any).objects.countries) as any;
 const LIVE_FEED_URL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson';
+const PIN_LONG_PRESS_MS = 460;
+const PIN_DRAG_CANCEL_PX = 7;
 
 export default function FlatMap({
   quakes,
@@ -70,6 +72,9 @@ export default function FlatMap({
   const knownLiveIdsRef = useRef<Set<string>>(new Set());
   const alarmZonesRef = useRef<AlarmZone[]>([]);
   const liveMinMagRef = useRef(2.5);
+  const pinPressTimerRef = useRef<number | null>(null);
+  const pinPressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const longPressTriggeredRef = useRef(false);
 
   const [size, setSize] = useState({ width: 1000, height: 560 });
   const [probe, setProbe] = useState<GlobeProbePoint | null>(null);
@@ -83,6 +88,7 @@ export default function FlatMap({
   const [alarmHits, setAlarmHits] = useState<AlarmHit[]>([]);
   const [dismissedAlarmIds, setDismissedAlarmIds] = useState<Set<string>>(new Set());
   const [monitorOpen, setMonitorOpen] = useState(false);
+  const [pinPressActive, setPinPressActive] = useState(false);
 
   useEffect(() => {
     alarmZonesRef.current = alarmZones;
@@ -246,6 +252,7 @@ export default function FlatMap({
 
   useEffect(() => {
     return () => {
+      if (pinPressTimerRef.current !== null) window.clearTimeout(pinPressTimerRef.current);
       for (const tone of alarmTonesRef.current.values()) stopAlarmTone(tone);
       alarmTonesRef.current.clear();
     };
@@ -301,6 +308,7 @@ export default function FlatMap({
     if (!probe) return null;
     return d3.geoCircle().center([probe.lon, probe.lat]).radius((radiusKm / KM_PER_RADIAN) * (180 / Math.PI))();
   }, [probe, radiusKm]);
+  const probePoint = useMemo(() => (probe ? projection([probe.lon, probe.lat]) : null), [probe, projection]);
 
   const alarmCircles = useMemo(
     () =>
@@ -346,16 +354,63 @@ export default function FlatMap({
     [alarmedLiveIds, liveQuakes, projection]
   );
 
-  const updateProbeFromEvent = (event: MouseEvent<SVGSVGElement>) => {
+  const getProbeFromEvent = (event: ReactMouseEvent<SVGSVGElement> | ReactPointerEvent<SVGSVGElement>) => {
     const [screenX, screenY] = d3.pointer(event);
     const [x, y] = zoomTransform.invert([screenX, screenY]);
     const coords = projection.invert?.([x, y]);
     if (!coords) return null;
     const [lon, lat] = coords;
-    const nextProbe = pointToProbe(latLonToVector3(lat, lon));
+    return pointToProbe(latLonToVector3(lat, lon));
+  };
+
+  const updateProbeFromEvent = (event: ReactMouseEvent<SVGSVGElement> | ReactPointerEvent<SVGSVGElement>) => {
+    const nextProbe = getProbeFromEvent(event);
+    if (!nextProbe) return null;
     setProbe(nextProbe);
     onProbe(nextProbe, buildProbeDistances(quakes, nextProbe));
     return nextProbe;
+  };
+
+  const pinProbeAt = (lat: number, lon: number) => {
+    const nextProbe = pointToProbe(latLonToVector3(lat, lon));
+    setProbe(nextProbe);
+    onProbeLockChange(true);
+    onProbe(nextProbe, buildProbeDistances(quakes, nextProbe));
+  };
+
+  const clearPinPress = () => {
+    if (pinPressTimerRef.current !== null) {
+      window.clearTimeout(pinPressTimerRef.current);
+      pinPressTimerRef.current = null;
+    }
+    pinPressStartRef.current = null;
+    if (!longPressTriggeredRef.current) setPinPressActive(false);
+  };
+
+  const startPinPress = (clientX: number, clientY: number, pin: () => void) => {
+    clearPinPress();
+    longPressTriggeredRef.current = false;
+    pinPressStartRef.current = { x: clientX, y: clientY };
+    setPinPressActive(true);
+    pinPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      pinPressTimerRef.current = null;
+      pin();
+      window.setTimeout(() => setPinPressActive(false), 180);
+    }, PIN_LONG_PRESS_MS);
+  };
+
+  const cancelPinPressIfDragged = (clientX: number, clientY: number) => {
+    if (pinPressTimerRef.current === null || !pinPressStartRef.current) return;
+    const dx = clientX - pinPressStartRef.current.x;
+    const dy = clientY - pinPressStartRef.current.y;
+    if (Math.hypot(dx, dy) > PIN_DRAG_CANCEL_PX) clearPinPress();
+  };
+
+  const shouldSuppressClick = () => {
+    if (!longPressTriggeredRef.current) return false;
+    longPressTriggeredRef.current = false;
+    return true;
   };
 
   const addAlarmZone = async () => {
@@ -382,7 +437,27 @@ export default function FlatMap({
         ref={svgRef}
         width={size.width}
         height={size.height}
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          const nextProbe = getProbeFromEvent(event);
+          if (!nextProbe) return;
+          startPinPress(event.clientX, event.clientY, () => {
+            setProbe(nextProbe);
+            onProbeLockChange(true);
+            onProbe(nextProbe, buildProbeDistances(quakes, nextProbe));
+          });
+        }}
+        onPointerUp={clearPinPress}
+        onPointerCancel={clearPinPress}
         onClick={(event) => {
+          if (shouldSuppressClick()) return;
+          if (event.shiftKey) {
+            const nextProbe = updateProbeFromEvent(event);
+            if (!nextProbe) return;
+            onProbeLockChange(true);
+            onProbe(nextProbe, buildProbeDistances(quakes, nextProbe));
+            return;
+          }
           if (alarmSoundHits.length > 0) {
             onHover(alarmSoundHits[0].quake);
             return;
@@ -399,11 +474,13 @@ export default function FlatMap({
           if (!nextLocked) setProbe(null);
         }}
         onMouseMove={(event) => {
+          cancelPinPressIfDragged(event.clientX, event.clientY);
           if (alarmSoundHits.length > 0) return;
           if (probeLocked) return;
           updateProbeFromEvent(event);
         }}
         onMouseLeave={() => {
+          clearPinPress();
           if (alarmSoundHits.length > 0) return;
           if (probeLocked) return;
           setProbe(null);
@@ -419,6 +496,13 @@ export default function FlatMap({
             <path key={zone.id} d={path(circle as any) || ''} className="live-alarm-zone" />
           ))}
           {probeCircle && <path d={path(probeCircle as any) || ''} className={`flat-probe-radius ${probeLocked ? 'locked' : ''}`} />}
+          {probePoint && pinPressActive && (
+            <g className="flat-probe-anchor-pulse" transform={`translate(${probePoint[0]},${probePoint[1]})`}>
+              <circle r={18} />
+              <circle r={31} />
+              <circle r={44} />
+            </g>
+          )}
 
           {points.map(({ quake, x, y, r }) => {
             const active = quake.id === selectedId || (!selectedId && quake.id === hoverId);
@@ -441,10 +525,22 @@ export default function FlatMap({
                     if (!selectedId && alarmSoundHits.length === 0) onHover(quake);
                   }}
                   onMouseLeave={() => {
+                    clearPinPress();
                     if (!selectedId && alarmSoundHits.length === 0) onHover(null);
                   }}
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) return;
+                    startPinPress(event.clientX, event.clientY, () => pinProbeAt(quake.lat, quake.lon));
+                  }}
+                  onPointerUp={clearPinPress}
+                  onPointerCancel={clearPinPress}
                   onClick={(event) => {
                     event.stopPropagation();
+                    if (shouldSuppressClick()) return;
+                    if (event.shiftKey) {
+                      pinProbeAt(quake.lat, quake.lon);
+                      return;
+                    }
                     if (alarmSoundHits.length > 0) {
                       onHover(alarmSoundHits[0].quake);
                       return;
@@ -464,10 +560,22 @@ export default function FlatMap({
                 if (!selectedId && (alarmed || alarmSoundHits.length === 0)) onHover(quake);
               }}
               onMouseLeave={() => {
+                clearPinPress();
                 if (!selectedId && !alarmed && alarmSoundHits.length === 0) onHover(null);
               }}
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                startPinPress(event.clientX, event.clientY, () => pinProbeAt(quake.lat, quake.lon));
+              }}
+              onPointerUp={clearPinPress}
+              onPointerCancel={clearPinPress}
               onClick={(event) => {
                 event.stopPropagation();
+                if (shouldSuppressClick()) return;
+                if (event.shiftKey) {
+                  pinProbeAt(quake.lat, quake.lon);
+                  return;
+                }
                 if (alarmed) dismissAlarmQuake(quake);
                 else onSelect(quake);
               }}
@@ -560,8 +668,9 @@ export default function FlatMap({
       </div>}
 
       <div className="globe-hud">
-        <div className="mono-caps">{tr(language, '2D map mode · wheel to zoom · click to lock probe', '2D 地图 · 滚轮缩放 · 点击锁定探针')}</div>
+        <div className="mono-caps">{tr(language, '2D map mode · wheel to zoom · long-press to pin probe', '2D 地图 · 滚轮缩放 · 长按固定探针')}</div>
       </div>
+      {hoverId && <div className="map-hover-hint">{tr(language, 'Shift-click or hold to pin here', 'Shift 点击或长按可在此固定')}</div>}
     </div>
   );
 }

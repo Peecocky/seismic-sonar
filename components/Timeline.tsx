@@ -25,8 +25,7 @@ interface Props {
   language: Language;
 }
 
-const MIN_EVENT_HIT_HEIGHT = 22;
-const EVENT_HIT_WIDTH = 12;
+const POINTER_HIT_RADIUS = 18;
 
 export default function Timeline({
   quakes,
@@ -88,6 +87,7 @@ export default function Timeline({
       .domain([Math.max(0, minMag - pad), Math.min(8, maxMag + pad)])
       .range([plotH, 0]);
   }, [plotH, filterMagnitude]);
+  const yTicks = useMemo(() => yScale.ticks(4), [yScale]);
 
   const histogram = useMemo(() => {
     const thresholds = xScale.ticks(Math.max(10, Math.floor(plotW / 56)));
@@ -149,6 +149,28 @@ export default function Timeline({
     (brushG as any).call(brushRef.current.move as any, [xScale(brushRange[0]), xScale(brushRange[1])]);
   }, [brushRange, plotW, xScale]);
 
+  const findNearestQuake = (clientX: number, clientY: number) => {
+    if (!svgRef.current || quakes.length === 0 || plotW <= 0 || plotH <= 0) return null;
+    const rect = svgRef.current.getBoundingClientRect();
+    const pointerX = clientX - rect.left - margin.left;
+    const pointerY = clientY - rect.top - margin.top;
+    if (pointerX < 0 || pointerX > plotW || pointerY < 0 || pointerY > plotH) return null;
+
+    let nearest: Quake | null = null;
+    let nearestDistance = Infinity;
+    for (const quake of quakes) {
+      const dx = xScale(quake.time) - pointerX;
+      const dy = yScale(quake.mag) - pointerY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance < nearestDistance) {
+        nearest = quake;
+        nearestDistance = distance;
+      }
+    }
+
+    return nearestDistance <= POINTER_HIT_RADIUS ? nearest : null;
+  };
+
   return (
     <div
       ref={wrapRef}
@@ -184,7 +206,22 @@ export default function Timeline({
       </div>
       <svg ref={svgRef} width={size.w} height={size.h}>
         <g transform={`translate(${margin.left},${margin.top})`}>
-          {d3.range(Math.ceil(filterMagnitude[0] * 2) / 2, 8, 0.5).map((magnitude) => (
+          <rect
+            className="timeline-plot-hit"
+            x={0}
+            y={0}
+            width={plotW}
+            height={plotH}
+            onMouseMove={(event) => onHover(findNearestQuake(event.clientX, event.clientY))}
+            onMouseLeave={() => onHover(null)}
+            onClick={(event) => {
+              const quake = findNearestQuake(event.clientX, event.clientY);
+              if (!quake) return;
+              event.stopPropagation();
+              onSelect(quake);
+            }}
+          />
+          {yTicks.map((magnitude) => (
             <line
               key={magnitude}
               x1={0}
@@ -200,27 +237,10 @@ export default function Timeline({
           {quakes.map((quake) => {
             const x = xScale(quake.time);
             const y = yScale(quake.mag);
-            const hitTop = Math.max(0, Math.min(y - 8, plotH - MIN_EVENT_HIT_HEIGHT));
-            const hitHeight = Math.min(plotH - hitTop, Math.max(MIN_EVENT_HIT_HEIGHT, plotH - hitTop));
             const cls = magClass(quake.mag);
             const active = quake.id === hoverId || quake.id === selectedId;
             return (
-              <g
-                key={quake.id}
-                onMouseEnter={() => onHover(quake)}
-                onMouseLeave={() => onHover(null)}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onSelect(quake);
-                }}
-              >
-                <rect
-                  className="timeline-column-hit"
-                  x={x - EVENT_HIT_WIDTH / 2}
-                  y={hitTop}
-                  width={EVENT_HIT_WIDTH}
-                  height={hitHeight}
-                />
+              <g key={quake.id} className="timeline-event">
                 <line
                   className={`tbar ${cls} ${active ? 'active' : ''}`}
                   x1={x}

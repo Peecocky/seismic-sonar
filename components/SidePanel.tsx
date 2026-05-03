@@ -112,13 +112,9 @@ export default function SidePanel({
           ))}
         </div>
         <div className="readout">
-          <div className="row">
-            <span className="k">{tr(language, 'Loaded', '已加载')}</span>
-            <span className="v">{totalCount}</span>
-          </div>
-          <div className="row">
-            <span className="k">{tr(language, 'Visible', '可见')}</span>
-            <span className="v">{quakes.length}</span>
+          <div className="row data-count-row">
+            <span className="k">{tr(language, 'Loaded / Visible', '已加载 / 可见')}</span>
+            <span className="v">{totalCount} / {quakes.length}</span>
           </div>
         </div>
         {strongest && (
@@ -127,89 +123,6 @@ export default function SidePanel({
             <strong>M{strongest.mag.toFixed(1)} · {strongest.place}</strong>
             <span>{formatTime(strongest.time)}</span>
           </button>
-        )}
-      </div>
-
-      <div className="section tour-target-probe">
-        <h3>{tr(language, 'Probe', '探针')}</h3>
-        <button className={`btn ${audioRunning ? 'on' : ''}`} onClick={() => (audioRunning ? onStop() : onStart())}>
-          {audioRunning ? tr(language, 'Stop Audio', '停止声音') : tr(language, 'Start Audio', '开启声音')}
-        </button>
-        <div className="slider-row">
-          <label>
-            <span>{tr(language, 'Volume', '音量')}</span>
-            <span className="val">{Math.round(volume * 100)}%</span>
-          </label>
-          <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => onVolume(+e.target.value)} />
-        </div>
-        <div className="slider-row">
-          <label>
-            <span>{tr(language, 'Influence Radius', '影响半径')}</span>
-            <span className="val">{Math.round(radius)} km</span>
-          </label>
-          <input type="range" min={0} max={100} step={1} value={radiusToSlider(radius)} onChange={(e) => onRadius(sliderToRadius(+e.target.value))} />
-        </div>
-        <div className="readout">
-          <div className="row">
-            <span className="k">{tr(language, 'State', '状态')}</span>
-            <span className="v">{probeLocked ? tr(language, 'Locked', '已锁定') : tr(language, 'Live hover', '实时 hover')}</span>
-          </div>
-          {probe && (
-            <div className="row">
-              <span className="k">{tr(language, 'Focus', '焦点')}</span>
-              <span className="v">{formatCoord(probe.lat, probe.lon)}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="section compact tour-target-forecast">
-        <h3>{tr(language, 'Local Forecast', '局部预测')}</h3>
-        {forecast ? (
-          <>
-            <div className="panel-note forecast-lede">
-              {tr(
-                language,
-                `Poisson estimate for M${forecast.minMagnitude.toFixed(1)}+ and M6+ inside ${Math.round(forecast.radiusKm)} km. Not a deterministic prediction.`,
-                `基于 ${Math.round(forecast.radiusKm)} km 内事件率估计 M${forecast.minMagnitude.toFixed(1)}+ 和 M6+ 概率，不是确定性预测。`
-              )}
-            </div>
-            <div className="readout">
-              <div className="row">
-                <span className="k">{tr(language, 'Next 7d', '未来 7 天')}</span>
-                <span className="v">{formatProbability(forecast.blendedProbability7d)}</span>
-              </div>
-              <div className="row">
-                <span className="k">{tr(language, 'Next 30d', '未来 30 天')}</span>
-                <span className="v">{formatProbability(forecast.blendedProbability30d)}</span>
-              </div>
-              <div className="row">
-                <span className="k">M6+ 7d</span>
-                <span className="v danger">{formatProbability(forecast.blendedIntensityProbability7d)}</span>
-              </div>
-              <div className="row">
-                <span className="k">M6+ 30d</span>
-                <span className="v danger">{formatProbability(forecast.blendedIntensityProbability30d)}</span>
-              </div>
-              <div className="row">
-                <span className="k">{tr(language, 'Evidence', '样本')}</span>
-                <span className="v">{forecast.nearbyCount} / M6+ {forecast.intensityCount} · {forecast.confidence}</span>
-              </div>
-            </div>
-            <div className="forecast-grid">
-              {forecast.stats.map((stat) => (
-                <div key={stat.days} className="forecast-cell">
-                  <span>{stat.days}d</span>
-                  <strong>{stat.count}</strong>
-                  <em>{formatProbability(stat.probability7d)} · M6 {formatProbability(stat.intensityProbability7d)}</em>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="panel-note">
-            {tr(language, 'Hover a map area or select an event to estimate local short-term probability from the last 360 days.', '在地图上移动鼠标或选择地震，用过去 360 天估计局部短期概率。')}
-          </div>
         )}
       </div>
 
@@ -251,7 +164,61 @@ export default function SidePanel({
         </div>
       </div>
 
-      <div className="section">
+      <div className="section tour-target-probe">
+        <h3>{tr(language, 'Probe', '探针')}</h3>
+        <button className={`btn ${audioRunning ? 'on' : ''}`} onClick={() => (audioRunning ? onStop() : onStart())}>
+          {audioRunning ? tr(language, 'Stop Audio', '停止声音') : tr(language, 'Start Audio', '开启声音')}
+        </button>
+        <div className="slider-row">
+          <label>
+            <span>{tr(language, 'Volume', '音量')}</span>
+            <span className="val">{Math.round(volume * 100)}%</span>
+          </label>
+          <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => onVolume(+e.target.value)} />
+        </div>
+        <div className="slider-row">
+          <label>
+            <span>{tr(language, 'Influence Radius', '影响半径')}</span>
+            <span className="val">{Math.round(radius)} km</span>
+          </label>
+          <input type="range" min={0} max={100} step={1} value={radiusToSlider(radius)} onChange={(e) => onRadius(sliderToRadius(+e.target.value))} />
+        </div>
+        <div className="readout">
+          <div className="row">
+            <span className="k">{tr(language, 'State', '状态')}</span>
+            <span className="v">{probeLocked ? tr(language, 'Locked', '已锁定') : tr(language, 'Live hover', '实时 hover')}</span>
+          </div>
+          {probe && (
+            <div className="row">
+              <span className="k">{tr(language, 'Focus', '焦点')}</span>
+              <span className="v">{formatCoord(probe.lat, probe.lon)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="section compact tour-target-forecast">
+        <h3>{tr(language, 'Prediction', '预测')}</h3>
+        {forecast ? (
+          <div className="forecast-grid prediction-grid">
+            {forecast.predictionHorizonStats.map((stat) => (
+              <div key={stat.days} className="forecast-cell prediction-card">
+                <strong>{tr(language, `Next ${stat.days} days`, `未来 ${stat.days} 天`)}</strong>
+                <em>
+                  <span>M{forecast.minMagnitude.toFixed(1)}+ <b>{formatProbability(stat.probability)}</b></span>
+                  <span>&gt;=M6 <b>{formatProbability(stat.intensityProbability)}</b></span>
+                </em>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="panel-note">
+            {tr(language, 'Hover a map area or select an event to estimate local short-term probability from the last 360 days.', '在地图上移动鼠标或选择地震，用过去 360 天估计局部短期概率。')}
+          </div>
+        )}
+      </div>
+
+      <div className="section tour-target-nearby">
         <h3>{tr(language, 'Nearby Earthquakes', '附近地震')}</h3>
         {nearest.length === 0 ? (
           <div className="panel-note">{tr(language, 'Move across the map, then click once to lock the probe.', '在地图上移动，点击一次可锁定探针。')}</div>
@@ -284,7 +251,7 @@ export default function SidePanel({
         )}
       </div>
 
-      <div className="section compact">
+      <div className="section compact tour-target-history">
         <h3>{tr(language, 'Browse History', '浏览历史')}</h3>
         {history.length === 0 ? (
           <div className="panel-note">{tr(language, 'Selected earthquakes will appear here.', '选择过的地震会显示在这里。')}</div>

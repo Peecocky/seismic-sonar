@@ -15,6 +15,9 @@ import Earth from '@/components/globe/Earth';
 import EarthquakeMarkers from '@/components/globe/EarthquakeMarkers';
 import ProbeRings from '@/components/globe/ProbeRings';
 
+const PIN_LONG_PRESS_MS = 460;
+const PIN_DRAG_CANCEL_PX = 7;
+
 interface GlobeSceneProps {
   quakes: Quake[];
   hoverId: string | null;
@@ -45,9 +48,14 @@ export default function GlobeScene(props: GlobeSceneProps) {
       </Canvas>
       <div className="globe-hud">
         <div className="mono-caps">
-          {tr(props.language, '3D globe · drag to orbit · click earth to lock sonar · Align returns default view', '3D 地球 · 拖动旋转 · 点击地球锁定声纳 · 对齐回到默认视角')}
+          {tr(props.language, '3D globe · drag to orbit · long-press to pin sonar · Align returns default view', '3D 地球 · 拖动旋转 · 长按固定声纳 · 对齐回到默认视角')}
         </div>
       </div>
+      {props.hoverId && (
+        <div className="map-hover-hint">
+          {tr(props.language, 'Shift-click or hold to pin here', 'Shift 点击或长按可在此固定')}
+        </div>
+      )}
     </div>
   );
 }
@@ -76,6 +84,10 @@ function SceneContent({
   const targetCameraPositionRef = useRef(new Vector3(0, 0, 9.2));
   const animatingFocusRef = useRef(false);
   const lastFocusIdRef = useRef<string | null>(null);
+  const pinPressTimerRef = useRef<number | null>(null);
+  const pinPressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const longPressTriggeredRef = useRef(false);
+  const [pinPressActive, setPinPressActive] = useState(false);
   const { camera } = useThree();
 
   useEffect(() => {
@@ -97,6 +109,12 @@ function SceneContent({
     animatingFocusRef.current = true;
   }, [alignSignal]);
 
+  useEffect(() => {
+    return () => {
+      if (pinPressTimerRef.current !== null) window.clearTimeout(pinPressTimerRef.current);
+    };
+  }, []);
+
   const setProbeState = (nextProbe: GlobeProbePoint | null, locked: boolean) => {
     setProbe(nextProbe);
     onProbeLockChange(locked);
@@ -104,12 +122,58 @@ function SceneContent({
   };
 
   const updateProbeFromPointer = (event: ThreeEvent<PointerEvent>) => {
+    cancelPinPressIfDragged(event.nativeEvent.clientX, event.nativeEvent.clientY);
     if (probeLocked) return;
     setHoveringGlobe(true);
     const localPoint = globeRef.current ? globeRef.current.worldToLocal(event.point.clone()) : event.point.clone();
     const nextProbe = pointToProbe(localPoint);
     setProbe(nextProbe);
     onProbeChange(nextProbe, buildProbeDistances(quakes, nextProbe));
+  };
+
+  const pinProbeFromPointer = (event: ThreeEvent<PointerEvent | MouseEvent>) => {
+    const localPoint = globeRef.current ? globeRef.current.worldToLocal(event.point.clone()) : event.point.clone();
+    setProbeState(pointToProbe(localPoint), true);
+  };
+
+  const pinProbeFromLocalPoint = (localPoint: Vector3) => {
+    setProbeState(pointToProbe(localPoint), true);
+  };
+
+  const clearPinPress = () => {
+    if (pinPressTimerRef.current !== null) {
+      window.clearTimeout(pinPressTimerRef.current);
+      pinPressTimerRef.current = null;
+    }
+    pinPressStartRef.current = null;
+    if (!longPressTriggeredRef.current) setPinPressActive(false);
+  };
+
+  const startPinPress = (event: ThreeEvent<PointerEvent | MouseEvent>) => {
+    clearPinPress();
+    longPressTriggeredRef.current = false;
+    const localPoint = globeRef.current ? globeRef.current.worldToLocal(event.point.clone()) : event.point.clone();
+    pinPressStartRef.current = { x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
+    setPinPressActive(true);
+    pinPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      pinPressTimerRef.current = null;
+      pinProbeFromLocalPoint(localPoint);
+      window.setTimeout(() => setPinPressActive(false), 180);
+    }, PIN_LONG_PRESS_MS);
+  };
+
+  const cancelPinPressIfDragged = (clientX: number, clientY: number) => {
+    if (pinPressTimerRef.current === null || !pinPressStartRef.current) return;
+    const dx = clientX - pinPressStartRef.current.x;
+    const dy = clientY - pinPressStartRef.current.y;
+    if (Math.hypot(dx, dy) > PIN_DRAG_CANCEL_PX) clearPinPress();
+  };
+
+  const shouldSuppressClick = () => {
+    if (!longPressTriggeredRef.current) return false;
+    longPressTriggeredRef.current = false;
+    return true;
   };
 
   useFrame((_, delta) => {
@@ -141,10 +205,14 @@ function SceneContent({
       <group ref={globeRef}>
         <Earth
           theme={theme}
+          onPointerDown={(event) => startPinPress(event)}
+          onPointerUp={clearPinPress}
+          onPointerCancel={clearPinPress}
           onPointerMove={(event) => {
             updateProbeFromPointer(event);
           }}
           onPointerLeave={() => {
+            clearPinPress();
             if (probeLocked) return;
             setHoveringGlobe(false);
             setProbe(null);
@@ -153,6 +221,11 @@ function SceneContent({
           }}
           onClick={(event) => {
             event.stopPropagation();
+            if (event.nativeEvent.shiftKey) {
+              pinProbeFromPointer(event);
+              return;
+            }
+            if (shouldSuppressClick()) return;
             if (selectedId) {
               onSelect(null);
               return;
@@ -173,8 +246,12 @@ function SceneContent({
           }}
           onSelect={(quake) => onSelect(quake)}
           onProbePoint={updateProbeFromPointer}
+          onPinProbePoint={pinProbeFromPointer}
+          onPinPressStart={startPinPress}
+          onPinPressCancel={clearPinPress}
+          shouldSuppressClick={shouldSuppressClick}
         />
-        {probe && <ProbeRings position={probe.position} normal={probe.normal} locked={probeLocked} radiusKm={radiusKm} />}
+        {probe && <ProbeRings position={probe.position} normal={probe.normal} locked={probeLocked} radiusKm={radiusKm} anchoring={pinPressActive} />}
       </group>
 
       <OrbitControls
@@ -186,6 +263,7 @@ function SceneContent({
         autoRotate={!interacting && !hoveringGlobe && !probeLocked && !focusTarget}
         autoRotateSpeed={0.28}
         onStart={() => {
+          clearPinPress();
           setInteracting(true);
           animatingFocusRef.current = false;
           onManualOrbitStart();

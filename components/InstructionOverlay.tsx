@@ -17,8 +17,8 @@ const steps = [
     target: 'map',
     enTitle: 'Map probe',
     cnTitle: '地图探针',
-    enBody: 'Hover the globe or 2D map to scan a radius. Click a quake to focus it; click it again to clear the selection.',
-    cnBody: '在 3D 地球或 2D 地图上移动鼠标扫描半径。点击地震会聚焦，再次点击会取消选择。',
+    enBody: 'Hover the globe or 2D map to scan a radius. Click a quake to focus it; press and hold the map or any quake briefly to pin the probe without opening the event.',
+    cnBody: '在 3D 地球或 2D 地图上移动鼠标扫描半径。点击地震会聚焦；在地图或任意地震上稍微长按，可以固定探针而不打开事件。',
   },
   {
     target: 'probe',
@@ -31,8 +31,8 @@ const steps = [
     target: 'forecast',
     enTitle: 'Local forecast',
     cnTitle: '局部概率',
-    enBody: 'The forecast estimates local M-threshold and M6+ probabilities from 30/90/180/360 day event rates.',
-    cnBody: '概率模块会用 30/90/180/360 天事件率估计当前阈值和 M6+ 的局部概率。',
+    enBody: 'Prediction uses the last 360 days of local events to estimate the chance of M-threshold and M6+ earthquakes over the next 7, 30, 180, and 360 days.',
+    cnBody: '预测会用过去 360 天的局部事件率，估计未来 7、30、180、360 天内当前阈值和 M6+ 地震出现的概率。',
   },
   {
     target: 'filter',
@@ -45,8 +45,22 @@ const steps = [
     target: 'timeline',
     enTitle: 'Timeline playback',
     cnTitle: '时间轴播放',
-    enBody: 'Brush the lower overview, then press Play to step through those earthquakes on the globe.',
-    cnBody: '在底部 overview 上刷选范围，然后点击播放，地球会按时间逐个跳转。',
+    enBody: 'Brush the lower overview, set Play speed, then press Play. Mouse wheel over the temporal distribution steps through events; Left/Right arrow keys step backward or forward.',
+    cnBody: '在底部 overview 上刷选范围，调节播放速度后点击播放。鼠标滚轮悬停在时间分布上可逐个切换事件；键盘左/右方向键可向前或向后切换。',
+  },
+  {
+    target: 'nearby',
+    enTitle: 'Nearby earthquakes',
+    cnTitle: '附近地震',
+    enBody: 'This list shows the closest events inside the probe field. Click any row to jump to that earthquake and inspect it on the map.',
+    cnBody: '这里显示探针范围内最近的地震。点击任意一行可以跳转到该地震，并在地图上查看详情。',
+  },
+  {
+    target: 'history',
+    enTitle: 'Browse history',
+    cnTitle: '浏览历史',
+    enBody: 'Recently selected earthquakes are saved here, so you can quickly return to events you inspected earlier.',
+    cnBody: '最近选择过的地震会保存在这里，方便你快速回到之前查看过的事件。',
   },
 ] as const;
 

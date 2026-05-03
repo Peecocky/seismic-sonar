@@ -3,6 +3,8 @@ import { KM_PER_RADIAN } from '@/lib/globe';
 
 export const FORECAST_WINDOWS = [30, 90, 180, 360] as const;
 export type ForecastWindowDays = (typeof FORECAST_WINDOWS)[number];
+export const PREDICTION_HORIZONS = [7, 30, 180, 360] as const;
+export type PredictionHorizonDays = (typeof PREDICTION_HORIZONS)[number];
 
 export interface ForecastWindowStat {
   days: ForecastWindowDays;
@@ -23,6 +25,11 @@ export interface LocalForecast {
   nearbyCount: number;
   intensityCount: number;
   stats: ForecastWindowStat[];
+  predictionHorizonStats: Array<{
+    days: PredictionHorizonDays;
+    probability: number;
+    intensityProbability: number;
+  }>;
   blendedProbability7d: number;
   blendedProbability30d: number;
   blendedIntensityProbability7d: number;
@@ -68,6 +75,12 @@ export function buildLocalForecast(
   const blendedRate = stats.reduce((sum, stat, index) => sum + stat.ratePerDay * weights[index], 0);
   const blendedIntensityRate = stats.reduce((sum, stat, index) => sum + stat.intensityRatePerDay * weights[index], 0);
   const totalEvidence = stats[stats.length - 1]?.count ?? 0;
+  const longWindow = stats[stats.length - 1];
+  const predictionHorizonStats = PREDICTION_HORIZONS.map((days) => ({
+    days,
+    probability: poissonAtLeastOne(longWindow.ratePerDay, days),
+    intensityProbability: poissonAtLeastOne(longWindow.intensityRatePerDay, days),
+  }));
 
   return {
     center,
@@ -76,6 +89,7 @@ export function buildLocalForecast(
     nearbyCount: nearby.length,
     intensityCount: nearby.filter((quake) => quake.mag >= 6).length,
     stats,
+    predictionHorizonStats,
     blendedProbability7d: poissonAtLeastOne(blendedRate, 7),
     blendedProbability30d: poissonAtLeastOne(blendedRate, 30),
     blendedIntensityProbability7d: poissonAtLeastOne(blendedIntensityRate, 7),

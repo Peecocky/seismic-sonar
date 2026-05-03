@@ -10,18 +10,28 @@ import type { ResolvedTheme } from '@/lib/ui';
 interface EarthProps {
   theme: ResolvedTheme;
   onPointerMove?: (event: any) => void;
+  onPointerDown?: (event: any) => void;
+  onPointerUp?: () => void;
   onPointerLeave?: () => void;
+  onPointerCancel?: () => void;
   onClick?: (event: any) => void;
 }
 
 const world = feature((countries as any), (countries as any).objects.countries) as any;
 
-export default function Earth({ theme, onPointerMove, onPointerLeave, onClick }: EarthProps) {
+export default function Earth({ theme, onPointerMove, onPointerDown, onPointerUp, onPointerLeave, onPointerCancel, onClick }: EarthProps) {
   const texture = useMemo(() => createEarthTexture(theme), [theme]);
 
   return (
     <group>
-      <mesh onPointerMove={onPointerMove} onPointerLeave={onPointerLeave} onClick={onClick}>
+      <mesh
+        onPointerMove={onPointerMove}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerLeave}
+        onPointerCancel={onPointerCancel}
+        onClick={onClick}
+      >
         <sphereGeometry args={[2, 96, 96]} />
         <meshStandardMaterial map={texture} roughness={0.97} metalness={0.02} />
       </mesh>

@@ -35,8 +35,8 @@ export default function Page() {
   const [alignSignal, setAlignSignal] = useState(0);
   const [playbackRunning, setPlaybackRunning] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(0.75);
-  const [themeMode, setThemeMode] = useState<ThemeMode>('auto');
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolveTheme('auto'));
+  const [themeMode, setThemeMode] = useState<ThemeMode>('day');
+  const resolvedTheme: ResolvedTheme = resolveTheme(themeMode);
   const [language, setLanguage] = useState<Language>('en');
   const [instructionOpen, setInstructionOpen] = useState(false);
   const [instructionStep, setInstructionStep] = useState(0);
@@ -47,14 +47,6 @@ export default function Page() {
   const [audioRunning, setAudioRunning] = useState(false);
   const [volume, setVolume] = useState(0.5);
   const [radius, setRadius] = useState(1800);
-
-  useEffect(() => {
-    const updateTheme = () => setResolvedTheme(resolveTheme(themeMode));
-    updateTheme();
-    if (themeMode !== 'auto') return;
-    const id = window.setInterval(updateTheme, 60_000);
-    return () => window.clearInterval(id);
-  }, [themeMode]);
 
   useEffect(() => {
     let cancelled = false;

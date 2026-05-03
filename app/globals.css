@@ -1,17 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap');
 
 :root {
-  --ink: #f7fafc;
-  --ink-warm: #eef5f4;
-  --panel: rgba(255, 255, 255, 0.96);
-  --paper: #14201d;
-  --paper-dim: #61706b;
-  --rule: #d8e3df;
-  --phosphor: #168a57;
-  --phosphor-soft: rgba(22, 138, 87, 0.12);
-  --amber: #d88918;
+  --ink: #e9efec;
+  --ink-warm: #dfe8e4;
+  --panel: rgba(247, 249, 245, 0.94);
+  --paper: #15231f;
+  --paper-dim: #5a6862;
+  --rule: #c7d4ce;
+  --phosphor: #126f4e;
+  --phosphor-soft: rgba(18, 111, 78, 0.13);
+  --amber: #c87911;
   --crimson: #cf3f32;
-  --cyan: #2387a7;
+  --cyan: #1f7790;
   --mono: 'Fraunces', serif;
   --serif: 'Fraunces', serif;
 }
@@ -28,7 +28,7 @@ body {
 }
 
 body {
-  background: linear-gradient(180deg, #f8fbfc 0%, #eef5f4 100%);
+  background: linear-gradient(180deg, #e9efec 0%, #dfe8e4 100%);
   color: var(--paper);
   font-family: var(--serif);
   overflow-x: hidden;
@@ -36,7 +36,9 @@ body {
 
 .app-shell {
   min-height: 100vh;
-  background: linear-gradient(180deg, var(--ink) 0%, var(--ink-warm) 100%);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.46), transparent 34%),
+    linear-gradient(180deg, var(--ink) 0%, var(--ink-warm) 100%);
   color: var(--paper);
 }
 
@@ -273,8 +275,8 @@ select {
 }
 
 .flat-sphere {
-  fill: #d9eef5;
-  stroke: rgba(49, 89, 103, 0.24);
+  fill: #cddfe4;
+  stroke: rgba(49, 89, 103, 0.28);
   stroke-width: 1;
 }
 
@@ -294,13 +296,13 @@ select {
 
 .flat-graticule {
   fill: none;
-  stroke: rgba(49, 89, 103, 0.18);
+  stroke: rgba(49, 89, 103, 0.22);
   stroke-width: 0.6;
 }
 
 .flat-land {
-  fill: #9fcf9f;
-  stroke: rgba(55, 113, 100, 0.5);
+  fill: #87ba8f;
+  stroke: rgba(43, 96, 83, 0.58);
   stroke-width: 0.6;
 }
 

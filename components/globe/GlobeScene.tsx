@@ -36,7 +36,7 @@ export default function GlobeScene(props: GlobeSceneProps) {
   return (
     <div className="map-wrap globe-wrap">
       <Canvas camera={{ position: [0, 0, 9.2], fov: 27 }} dpr={[1, 1.8]}>
-        <color attach="background" args={[isNight ? '#081110' : '#f7fafc']} />
+        <color attach="background" args={[isNight ? '#081110' : '#e9efec']} />
         <ambientLight intensity={isNight ? 0.9 : 1.45} />
         <directionalLight position={[4, 2, 5]} intensity={isNight ? 1.6 : 1.75} color="#fff2cf" />
         <directionalLight position={[-5, -3, -4]} intensity={isNight ? 0.45 : 0.35} color="#8bd7e8" />

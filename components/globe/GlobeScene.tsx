@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { Group, Quaternion, Vector3 } from 'three';
@@ -102,6 +103,15 @@ function SceneContent({
     onProbeChange(nextProbe, nextProbe ? buildProbeDistances(quakes, nextProbe) : new Map());
   };
 
+  const updateProbeFromPointer = (event: ThreeEvent<PointerEvent>) => {
+    if (probeLocked) return;
+    setHoveringGlobe(true);
+    const localPoint = globeRef.current ? globeRef.current.worldToLocal(event.point.clone()) : event.point.clone();
+    const nextProbe = pointToProbe(localPoint);
+    setProbe(nextProbe);
+    onProbeChange(nextProbe, buildProbeDistances(quakes, nextProbe));
+  };
+
   useFrame((_, delta) => {
     if (globeRef.current && animatingFocusRef.current) {
       globeRef.current.quaternion.slerp(targetQuaternionRef.current, 1 - Math.exp(-delta * 2.6));
@@ -132,12 +142,7 @@ function SceneContent({
         <Earth
           theme={theme}
           onPointerMove={(event) => {
-            if (probeLocked) return;
-            setHoveringGlobe(true);
-            const localPoint = globeRef.current ? globeRef.current.worldToLocal(event.point.clone()) : event.point.clone();
-            const nextProbe = pointToProbe(localPoint);
-            setProbe(nextProbe);
-            onProbeChange(nextProbe, buildProbeDistances(quakes, nextProbe));
+            updateProbeFromPointer(event);
           }}
           onPointerLeave={() => {
             if (probeLocked) return;
@@ -167,6 +172,7 @@ function SceneContent({
             onHover(quake);
           }}
           onSelect={(quake) => onSelect(quake)}
+          onProbePoint={updateProbeFromPointer}
         />
         {probe && <ProbeRings position={probe.position} normal={probe.normal} locked={probeLocked} radiusKm={radiusKm} />}
       </group>

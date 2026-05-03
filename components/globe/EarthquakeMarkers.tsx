@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { Html } from '@react-three/drei';
+import type { ThreeEvent } from '@react-three/fiber';
 import type { Quake } from '@/lib/data';
 import { EARTH_RADIUS, MARKER_ALTITUDE, latLonToVector3, quakeMarkerColor, quakeMarkerScale } from '@/lib/globe';
 
@@ -11,6 +12,7 @@ interface EarthquakeMarkersProps {
   selectedId: string | null;
   onHover: (quake: Quake | null) => void;
   onSelect: (quake: Quake) => void;
+  onProbePoint: (event: ThreeEvent<PointerEvent>) => void;
 }
 
 export default function EarthquakeMarkers({
@@ -19,6 +21,7 @@ export default function EarthquakeMarkers({
   selectedId,
   onHover,
   onSelect,
+  onProbePoint,
 }: EarthquakeMarkersProps) {
   const markers = useMemo(
     () =>
@@ -50,7 +53,12 @@ export default function EarthquakeMarkers({
               scale={active ? scale * 1.45 : scale}
               onPointerEnter={(event) => {
                 event.stopPropagation();
+                onProbePoint(event);
                 if (!selectedId) onHover(quake);
+              }}
+              onPointerMove={(event) => {
+                event.stopPropagation();
+                onProbePoint(event);
               }}
               onPointerLeave={(event) => {
                 event.stopPropagation();
@@ -68,7 +76,12 @@ export default function EarthquakeMarkers({
               scale={Math.max(scale * 3, 0.075)}
               onPointerEnter={(event) => {
                 event.stopPropagation();
+                onProbePoint(event);
                 if (!selectedId) onHover(quake);
+              }}
+              onPointerMove={(event) => {
+                event.stopPropagation();
+                onProbePoint(event);
               }}
               onPointerLeave={(event) => {
                 event.stopPropagation();

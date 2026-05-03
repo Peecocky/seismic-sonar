@@ -8,6 +8,7 @@ import Intro from '@/components/Intro';
 import InstructionOverlay from '@/components/InstructionOverlay';
 import { loadQuakes } from '@/lib/data';
 import type { DataWindowDays, Quake } from '@/lib/data';
+import { buildProbeDistances } from '@/lib/globe';
 import type { GlobeFocusTarget, GlobeProbePoint } from '@/lib/globe';
 import { SonarEngine } from '@/lib/audio';
 import { buildLocalForecast } from '@/lib/forecast';
@@ -158,20 +159,27 @@ export default function Page() {
 
   useEffect(() => {
     engineRef.current?.setRadius(radius);
-  }, [radius]);
+    engineRef.current?.updateProbe(probeDistances);
+  }, [probeDistances, radius]);
 
   useEffect(() => {
-    engineRef.current?.syncQuakes(quakes);
-  }, [quakes]);
+    engineRef.current?.syncQuakes(visibleQuakes);
+  }, [visibleQuakes]);
+
+  useEffect(() => {
+    const nextDistances = probe ? buildProbeDistances(visibleQuakes, probe) : new Map<string, number>();
+    setProbeDistances(nextDistances);
+    engineRef.current?.updateProbe(nextDistances);
+  }, [probe, visibleQuakes]);
 
   const startAudio = useCallback(async () => {
     if (!engineRef.current || engineRef.current.isRunning) return;
-    await engineRef.current.start(quakes);
+    await engineRef.current.start(visibleQuakes);
     engineRef.current.setVolume(volume);
     engineRef.current.setRadius(radius);
     if (probeDistances.size > 0) engineRef.current.updateProbe(probeDistances);
     setAudioRunning(true);
-  }, [probeDistances, quakes, radius, volume]);
+  }, [probeDistances, radius, visibleQuakes, volume]);
 
   const stopAudio = useCallback(() => {
     engineRef.current?.stop();

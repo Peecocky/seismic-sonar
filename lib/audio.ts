@@ -15,13 +15,17 @@ interface Voice {
   gain: GainNode;
   baseFreq: number;
   magGain: number;
+  releaseTimer: number | null;
 }
 
 export class SonarEngine {
+  private static readonly MAX_ACTIVE_VOICES = 96;
+
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private bedGain: GainNode | null = null;
   private bedSource: AudioBufferSourceNode | null = null;
+  private catalog = new Map<string, Quake>();
   private voices = new Map<string, Voice>();
   private running = false;
   private volume = 0.5;
@@ -31,19 +35,45 @@ export class SonarEngine {
   public updateProbe(distances: Map<string, number>) {
     if (!this.running || !this.ctx || this.muted) return;
     const now = this.ctx.currentTime;
-    for (const [id, voice] of this.voices) {
-      const distance = distances.get(id);
-      let target = 0;
-      if (distance !== undefined && distance < this.radius) {
+    const active = new Map<string, number>();
+
+    [...distances.entries()]
+      .map(([id, distance]) => {
+        const quake = this.catalog.get(id);
+        if (!quake || distance >= this.radius) return null;
         const normalized = 1 - distance / this.radius;
-        target = normalized * normalized;
+        const gain = normalized * normalized * this.magToGain(quake.mag);
+        return { id, gain };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b!.gain - a!.gain)
+      .slice(0, SonarEngine.MAX_ACTIVE_VOICES)
+      .forEach((item) => active.set(item!.id, item!.gain));
+
+    for (const id of active.keys()) {
+      const quake = this.catalog.get(id);
+      if (quake && !this.voices.has(id)) {
+        this.voices.set(id, this.buildVoice(quake));
       }
-      voice.gain.gain.setTargetAtTime(target * voice.magGain, now, 0.045);
+    }
+
+    for (const [id, voice] of this.voices) {
+      const target = active.get(id);
+      if (target !== undefined) {
+        if (voice.releaseTimer !== null) {
+          window.clearTimeout(voice.releaseTimer);
+          voice.releaseTimer = null;
+        }
+        voice.gain.gain.setTargetAtTime(target, now, 0.045);
+      } else {
+        this.releaseVoice(id, voice);
+      }
     }
   }
 
   public async start(quakes: Quake[]) {
     if (this.running) return;
+    this.setCatalog(quakes);
     const AC = window.AudioContext || (window as any).webkitAudioContext;
     this.ctx = new AC();
     if (this.ctx.state === 'suspended') await this.ctx.resume();
@@ -58,30 +88,16 @@ export class SonarEngine {
     this.bedSource.connect(this.bedGain).connect(this.masterGain);
     this.bedSource.start();
 
-    for (const quake of quakes) {
-      this.voices.set(quake.id, this.buildVoice(quake));
-    }
-
     this.running = true;
   }
 
   public syncQuakes(quakes: Quake[]) {
+    this.setCatalog(quakes);
     if (!this.running || !this.ctx || !this.masterGain) return;
-    const nextIds = new Set(quakes.map((quake) => quake.id));
 
     for (const [id, voice] of this.voices) {
-      if (!nextIds.has(id)) {
-        try {
-          voice.osc1.stop();
-          voice.osc2.stop();
-        } catch {}
-        this.voices.delete(id);
-      }
-    }
-
-    for (const quake of quakes) {
-      if (!this.voices.has(quake.id)) {
-        this.voices.set(quake.id, this.buildVoice(quake));
+      if (!this.catalog.has(id)) {
+        this.releaseVoice(id, voice);
       }
     }
   }
@@ -89,6 +105,7 @@ export class SonarEngine {
   public stop() {
     if (!this.ctx) return;
     for (const voice of this.voices.values()) {
+      if (voice.releaseTimer !== null) window.clearTimeout(voice.releaseTimer);
       try {
         voice.osc1.stop();
         voice.osc2.stop();
@@ -100,6 +117,9 @@ export class SonarEngine {
     this.voices.clear();
     this.ctx.close();
     this.ctx = null;
+    this.masterGain = null;
+    this.bedGain = null;
+    this.bedSource = null;
     this.running = false;
   }
 
@@ -188,7 +208,24 @@ export class SonarEngine {
     osc1.start();
     osc2.start();
 
-    return { osc1, osc2, filter, gain, baseFreq, magGain };
+    return { osc1, osc2, filter, gain, baseFreq, magGain, releaseTimer: null };
+  }
+
+  private setCatalog(quakes: Quake[]) {
+    this.catalog = new Map(quakes.map((quake) => [quake.id, quake]));
+  }
+
+  private releaseVoice(id: string, voice: Voice) {
+    if (!this.ctx || voice.releaseTimer !== null) return;
+    const now = this.ctx.currentTime;
+    voice.gain.gain.setTargetAtTime(0, now, 0.05);
+    voice.releaseTimer = window.setTimeout(() => {
+      try {
+        voice.osc1.stop();
+        voice.osc2.stop();
+      } catch {}
+      this.voices.delete(id);
+    }, 240);
   }
 
   private createNoiseSource(): AudioBufferSourceNode {

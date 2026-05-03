@@ -25,6 +25,9 @@ interface Props {
   language: Language;
 }
 
+const MIN_EVENT_HIT_HEIGHT = 22;
+const EVENT_HIT_WIDTH = 12;
+
 export default function Timeline({
   quakes,
   allQuakes,
@@ -75,10 +78,16 @@ export default function Timeline({
     () => d3.scaleTime().domain(extent).range([0, plotW]),
     [extent, plotW]
   );
-  const yScale = useMemo(
-    () => d3.scaleLinear().domain([filterMagnitude[0], 8]).range([plotH, 0]),
-    [plotH, filterMagnitude]
-  );
+  const yScale = useMemo(() => {
+    const minMag = Math.min(filterMagnitude[0], filterMagnitude[1]);
+    const maxMag = Math.max(filterMagnitude[0], filterMagnitude[1]);
+    const span = Math.max(0.1, maxMag - minMag);
+    const pad = Math.max(0.15, span * 0.08);
+    return d3
+      .scaleLinear()
+      .domain([Math.max(0, minMag - pad), Math.min(8, maxMag + pad)])
+      .range([plotH, 0]);
+  }, [plotH, filterMagnitude]);
 
   const histogram = useMemo(() => {
     const thresholds = xScale.ticks(Math.max(10, Math.floor(plotW / 56)));
@@ -191,10 +200,27 @@ export default function Timeline({
           {quakes.map((quake) => {
             const x = xScale(quake.time);
             const y = yScale(quake.mag);
+            const hitTop = Math.max(0, Math.min(y - 8, plotH - MIN_EVENT_HIT_HEIGHT));
+            const hitHeight = Math.min(plotH - hitTop, Math.max(MIN_EVENT_HIT_HEIGHT, plotH - hitTop));
             const cls = magClass(quake.mag);
             const active = quake.id === hoverId || quake.id === selectedId;
             return (
-              <g key={quake.id}>
+              <g
+                key={quake.id}
+                onMouseEnter={() => onHover(quake)}
+                onMouseLeave={() => onHover(null)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelect(quake);
+                }}
+              >
+                <rect
+                  className="timeline-column-hit"
+                  x={x - EVENT_HIT_WIDTH / 2}
+                  y={hitTop}
+                  width={EVENT_HIT_WIDTH}
+                  height={hitHeight}
+                />
                 <line
                   className={`tbar ${cls} ${active ? 'active' : ''}`}
                   x1={x}
@@ -207,12 +233,6 @@ export default function Timeline({
                   cx={x}
                   cy={y}
                   r={active ? 7 : 5}
-                  onMouseEnter={() => onHover(quake)}
-                  onMouseLeave={() => onHover(null)}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onSelect(quake);
-                  }}
                 />
               </g>
             );

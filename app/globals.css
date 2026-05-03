@@ -960,6 +960,12 @@ input[type='range']::-moz-range-thumb {
   cursor: pointer;
 }
 
+.timeline-column-hit {
+  fill: transparent;
+  cursor: pointer;
+  pointer-events: all;
+}
+
 .timeline-hit.active {
   fill: rgba(123, 240, 156, 0.16);
 }

@@ -6,6 +6,7 @@ import * as d3 from 'd3';
 import { feature } from 'topojson-client';
 import countries from 'world-atlas/countries-110m.json';
 import type { Quake } from '@/lib/data';
+import type { Typhoon } from '@/lib/typhoon';
 import type { GlobeProbePoint } from '@/lib/globe';
 import { buildProbeDistances, KM_PER_RADIAN, latLonToVector3, pointToProbe, quakeMarkerColor } from '@/lib/globe';
 import type { Language } from '@/lib/ui';
@@ -13,6 +14,7 @@ import { tr } from '@/lib/ui';
 
 interface FlatMapProps {
   quakes: Quake[];
+  typhoons: Typhoon[];
   onHover: (quake: Quake | null) => void;
   onSelect: (quake: Quake | null) => void;
   onProbe: (probe: GlobeProbePoint | null, distances: Map<string, number>) => void;
@@ -22,6 +24,8 @@ interface FlatMapProps {
   radiusKm: number;
   probeLocked: boolean;
   language: Language;
+  selectedTyphoonId: string | null;
+  onSelectTyphoon: (typhoon: Typhoon) => void;
 }
 
 interface AlarmZone {
@@ -55,6 +59,7 @@ const PIN_DRAG_CANCEL_PX = 7;
 
 export default function FlatMap({
   quakes,
+  typhoons,
   onHover,
   onSelect,
   onProbe,
@@ -64,6 +69,8 @@ export default function FlatMap({
   radiusKm,
   probeLocked,
   language,
+  selectedTyphoonId,
+  onSelectTyphoon,
 }: FlatMapProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -354,6 +361,29 @@ export default function FlatMap({
     [alarmedLiveIds, liveQuakes, projection]
   );
 
+  const typhoonLayers = useMemo(
+    () =>
+      typhoons.map((typhoon) => {
+        const latest = typhoon.points[typhoon.points.length - 1];
+        const center = latest ? projection([latest.lon, latest.lat]) : null;
+        return {
+          typhoon,
+          center,
+          actual: {
+            type: 'LineString',
+            coordinates: typhoon.points.map((point) => [point.lon, point.lat]),
+          },
+          forecast: typhoon.forecast
+            ? {
+                type: 'LineString',
+                coordinates: typhoon.forecast.points.map((point) => [point.lon, point.lat]),
+              }
+            : null,
+        };
+      }),
+    [projection, typhoons]
+  );
+
   const getProbeFromEvent = (event: ReactMouseEvent<SVGSVGElement> | ReactPointerEvent<SVGSVGElement>) => {
     const [screenX, screenY] = d3.pointer(event);
     const [x, y] = zoomTransform.invert([screenX, screenY]);
@@ -492,6 +522,12 @@ export default function FlatMap({
           <path d={path({ type: 'Sphere' } as any) || ''} className="flat-sphere" />
           <path d={path(graticule as any) || ''} className="flat-graticule" />
           <path d={path(world) || ''} className="flat-land" />
+          {typhoonLayers.map(({ typhoon, actual, forecast }) => (
+            <g key={`typhoon-track-${typhoon.id}`} className={typhoon.id === selectedTyphoonId ? 'typhoon-layer selected' : 'typhoon-layer'}>
+              <path d={path(actual as any) || ''} className="typhoon-track" />
+              {forecast && <path d={path(forecast as any) || ''} className="typhoon-forecast-track" />}
+            </g>
+          ))}
           {alarmCircles.map(({ zone, circle }) => (
             <path key={zone.id} d={path(circle as any) || ''} className="live-alarm-zone" />
           ))}
@@ -548,6 +584,26 @@ export default function FlatMap({
                     onSelect(quake);
                   }}
                 />
+              </g>
+            );
+          })}
+
+          {typhoonLayers.map(({ typhoon, center }) => {
+            if (!center) return null;
+            const active = typhoon.id === selectedTyphoonId;
+            return (
+              <g
+                key={`typhoon-center-${typhoon.id}`}
+                className={`typhoon-center ${active ? 'selected' : ''} ${typhoon.isActive ? 'active' : ''}`}
+                transform={`translate(${center[0]},${center[1]})`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelectTyphoon(typhoon);
+                }}
+              >
+                {typhoon.isActive && <circle className="typhoon-center-pulse" r={12} />}
+                <circle className="typhoon-center-hit" r={12} />
+                <circle className="typhoon-center-core" r={active ? 6 : 4.5} />
               </g>
             );
           })}

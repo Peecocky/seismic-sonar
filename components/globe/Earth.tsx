@@ -76,7 +76,7 @@ function createEarthTexture(theme: ResolvedTheme) {
 
   context.save();
   const graticule = d3.geoGraticule10();
-  context.strokeStyle = theme === 'night' ? 'rgba(123, 240, 156, 0.12)' : 'rgba(51, 100, 125, 0.16)';
+  context.strokeStyle = theme === 'night' ? 'rgba(88, 212, 245, 0.12)' : 'rgba(51, 100, 125, 0.16)';
   context.lineWidth = 0.7;
   context.beginPath();
   path(graticule as any);

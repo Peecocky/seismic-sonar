@@ -18,13 +18,16 @@ probe to an event, the louder its voice.
 
 ## Data
 
-- USGS M4.5+ earthquakes, past 30 days, live GeoJSON feed
-- Bundled snapshot of **~230 real events** in `public/data/earthquakes.json`
-- Refresh the snapshot any time with `npm run refresh-data` (requires Python 3)
-- Fields: `id, mag, place, time, lon, lat, depth, tsunami, felt, sig`
+- USGS M4.5+ earthquakes fetched at runtime for rolling 30, 90, 180, and 360-day windows
+- Custom date-range earthquake export in CSV, formatted JSON, or GeoJSON
+- Tropical cyclones observed during the past 30 days, with observed tracks and the latest China forecast track
+- Fields: `id, mag, place, time, lon, lat, depth`
 
 Data source:
 <https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson>
+
+Typhoon source:
+<https://typhoon.slt.zj.gov.cn/>
 
 ## Getting started
 
@@ -65,15 +68,6 @@ sub-oscillator mixed in for magnitude ≥ 5. Mapping:
 
 A quiet pink-noise bed plays constantly so the soundscape never goes dead.
 
-## Refreshing data
-
-```bash
-npm run refresh-data
-```
-
-This runs `scripts/process_data.py`, which fetches the USGS feed and writes
-`public/data/earthquakes.json`.
-
 ## Project structure
 
 ```
@@ -82,6 +76,7 @@ app/
   page.tsx          Coordinating state for all three views
   globals.css       Monitor-station aesthetic
 components/
+  DataDownloadDialog.tsx Custom range fetch, preview, and export
   GeoMap.tsx        Projection, probe ring, quake markers, tooltip
   Timeline.tsx      Magnitude-vs-time + d3-brush
   SidePanel.tsx     Controls, spectrum, nearest probe list, selection detail
@@ -89,14 +84,14 @@ components/
 lib/
   audio.ts          SonarEngine (Web Audio)
   data.ts           Loader, types, formatters
-public/data/
-  earthquakes.json  Bundled USGS snapshot
-scripts/
-  process_data.py   Refresh the snapshot from USGS
+  typhoon.ts        Typhoon loader and shared types
+app/api/typhoons/
+  route.ts          Recent typhoon and forecast normalization
 ```
 
 ## Credits
 
 - Earthquake data: **USGS Earthquake Hazards Program**
+- Typhoon data: **Zhejiang Provincial Water Resources Department**
 - World map: **Natural Earth** via `world-atlas`
 - Typography: **Fraunces** and **JetBrains Mono** (Google Fonts)

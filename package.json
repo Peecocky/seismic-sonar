@@ -7,8 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "refresh-data": "python3 scripts/process_data.py"
+    "lint": "next lint"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",

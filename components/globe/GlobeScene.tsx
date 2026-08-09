@@ -7,6 +7,7 @@ import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { Group, Quaternion, Vector3 } from 'three';
 import type { Quake } from '@/lib/data';
+import type { Typhoon } from '@/lib/typhoon';
 import type { GlobeFocusTarget, GlobeProbePoint } from '@/lib/globe';
 import { buildProbeDistances, globeQuaternionForTarget, pointToProbe } from '@/lib/globe';
 import type { Language, ResolvedTheme } from '@/lib/ui';
@@ -14,12 +15,14 @@ import { tr } from '@/lib/ui';
 import Earth from '@/components/globe/Earth';
 import EarthquakeMarkers from '@/components/globe/EarthquakeMarkers';
 import ProbeRings from '@/components/globe/ProbeRings';
+import TyphoonTracks from '@/components/globe/TyphoonTracks';
 
 const PIN_LONG_PRESS_MS = 460;
 const PIN_DRAG_CANCEL_PX = 7;
 
 interface GlobeSceneProps {
   quakes: Quake[];
+  typhoons: Typhoon[];
   hoverId: string | null;
   selectedId: string | null;
   onHover: (quake: Quake | null) => void;
@@ -33,6 +36,8 @@ interface GlobeSceneProps {
   alignSignal: number;
   theme: ResolvedTheme;
   language: Language;
+  selectedTyphoonId: string | null;
+  onSelectTyphoon: (typhoon: Typhoon) => void;
 }
 
 export default function GlobeScene(props: GlobeSceneProps) {
@@ -40,7 +45,7 @@ export default function GlobeScene(props: GlobeSceneProps) {
   return (
     <div className="map-wrap globe-wrap">
       <Canvas camera={{ position: [0, 0, 9.2], fov: 27 }} dpr={[1, 1.8]}>
-        <color attach="background" args={[isNight ? '#081110' : '#e9efec']} />
+        <color attach="background" args={[isNight ? '#071318' : '#edf3f6']} />
         <ambientLight intensity={isNight ? 0.9 : 1.45} />
         <directionalLight position={[4, 2, 5]} intensity={isNight ? 1.6 : 1.75} color="#fff2cf" />
         <directionalLight position={[-5, -3, -4]} intensity={isNight ? 0.45 : 0.35} color="#8bd7e8" />
@@ -62,6 +67,7 @@ export default function GlobeScene(props: GlobeSceneProps) {
 
 function SceneContent({
   quakes,
+  typhoons,
   hoverId,
   selectedId,
   onHover,
@@ -74,6 +80,8 @@ function SceneContent({
   focusTarget,
   alignSignal,
   theme,
+  selectedTyphoonId,
+  onSelectTyphoon,
 }: GlobeSceneProps) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const globeRef = useRef<Group | null>(null);
@@ -251,6 +259,7 @@ function SceneContent({
           onPinPressCancel={clearPinPress}
           shouldSuppressClick={shouldSuppressClick}
         />
+        <TyphoonTracks typhoons={typhoons} selectedId={selectedTyphoonId} onSelect={onSelectTyphoon} />
         {probe && <ProbeRings position={probe.position} normal={probe.normal} locked={probeLocked} radiusKm={radiusKm} anchoring={pinPressActive} />}
       </group>
 

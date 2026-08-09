@@ -86,7 +86,7 @@ export function globeQuaternionForTarget(target: GlobeFocusTarget) {
 }
 
 export function quakeMarkerColor(magnitude: number, active: boolean) {
-  if (active) return '#7bf09c';
+  if (active) return '#58d4f5';
   const t = clamp((magnitude - 4.5) / (7.8 - 4.5), 0, 1);
   return interpolateHex('#f7e5b8', '#f0bf59', '#e57d2f', '#bf3a26', '#64120e', t);
 }

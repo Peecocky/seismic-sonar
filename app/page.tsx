@@ -6,6 +6,7 @@ import Timeline from '@/components/Timeline';
 import SidePanel from '@/components/SidePanel';
 import Intro from '@/components/Intro';
 import InstructionOverlay from '@/components/InstructionOverlay';
+import DataDownloadDialog from '@/components/DataDownloadDialog';
 import { loadQuakes } from '@/lib/data';
 import type { DataWindowDays, Quake } from '@/lib/data';
 import { buildProbeDistances } from '@/lib/globe';
@@ -14,12 +15,19 @@ import { SonarEngine } from '@/lib/audio';
 import { buildLocalForecast } from '@/lib/forecast';
 import type { Language, ResolvedTheme, ThemeMode } from '@/lib/ui';
 import { resolveTheme, tr } from '@/lib/ui';
+import { loadTyphoons } from '@/lib/typhoon';
+import type { Typhoon } from '@/lib/typhoon';
 
 export default function Page() {
   const [quakes, setQuakes] = useState<Quake[]>([]);
   const [forecastQuakes, setForecastQuakes] = useState<Quake[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [typhoons, setTyphoons] = useState<Typhoon[]>([]);
+  const [typhoonLoading, setTyphoonLoading] = useState(true);
+  const [typhoonError, setTyphoonError] = useState<string | null>(null);
+  const [showTyphoons, setShowTyphoons] = useState(true);
+  const [selectedTyphoon, setSelectedTyphoon] = useState<Typhoon | null>(null);
 
   const [introOpen, setIntroOpen] = useState(true);
   const [hover, setHover] = useState<Quake | null>(null);
@@ -41,6 +49,7 @@ export default function Page() {
   const [language, setLanguage] = useState<Language>('en');
   const [instructionOpen, setInstructionOpen] = useState(false);
   const [instructionStep, setInstructionStep] = useState(0);
+  const [downloadOpen, setDownloadOpen] = useState(false);
 
   const engineRef = useRef<SonarEngine | null>(null);
   const playbackTimeoutRef = useRef<number | null>(null);
@@ -88,6 +97,31 @@ export default function Page() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshTyphoons = async () => {
+      try {
+        const result = await loadTyphoons();
+        if (cancelled) return;
+        setTyphoons(result);
+        setTyphoonError(null);
+        setSelectedTyphoon((current) => (current ? result.find((item) => item.id === current.id) ?? null : null));
+      } catch (error) {
+        if (!cancelled) setTyphoonError(String(error));
+      } finally {
+        if (!cancelled) setTyphoonLoading(false);
+      }
+    };
+
+    refreshTyphoons();
+    const refreshId = window.setInterval(refreshTyphoons, 10 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshId);
+    };
+  }, []);
+
   const magnitudeFilteredQuakes = useMemo(
     () =>
       quakes.filter((quake) => {
@@ -117,6 +151,17 @@ export default function Page() {
   }, [hover, selected, visibleQuakes]);
 
   const focusTarget = useMemo<GlobeFocusTarget | null>(() => {
+    if (selectedTyphoon && mapMode === '3d') {
+      const center = selectedTyphoon.points[selectedTyphoon.points.length - 1];
+      if (center) {
+        return {
+          id: `typhoon-${selectedTyphoon.id}`,
+          latitude: center.lat,
+          longitude: center.lon,
+          distance: 7.4,
+        };
+      }
+    }
     if (selected && mapMode === '3d') {
       return {
         id: `quake-${selected.id}`,
@@ -126,7 +171,7 @@ export default function Page() {
       };
     }
     return null;
-  }, [selected, mapMode]);
+  }, [selected, selectedTyphoon, mapMode]);
 
   const forecastCenter = probe ?? selected ?? hover;
   const forecastSource = forecastQuakes.length > 0 ? forecastQuakes : quakes;
@@ -202,6 +247,7 @@ export default function Page() {
         return;
       }
       if (quake) {
+        setSelectedTyphoon(null);
         setHistory((items) => [quake, ...items.filter((item) => item.id !== quake.id)].slice(0, 10));
       }
       setSelected(quake);
@@ -210,10 +256,23 @@ export default function Page() {
   );
 
   const selectTimelineQuake = useCallback((quake: Quake) => {
+    setSelectedTyphoon(null);
     setMapMode('3d');
     setSelected(quake);
     setHover(quake);
     setHistory((items) => [quake, ...items.filter((item) => item.id !== quake.id)].slice(0, 10));
+  }, []);
+
+  const handleSelectTyphoon = useCallback((typhoon: Typhoon) => {
+    setShowTyphoons(true);
+    setSelected(null);
+    setHover(null);
+    setSelectedTyphoon((current) => (current?.id === typhoon.id ? null : typhoon));
+  }, []);
+
+  const handleShowTyphoons = useCallback((show: boolean) => {
+    setShowTyphoons(show);
+    if (!show) setSelectedTyphoon(null);
   }, []);
 
   const stopPlayback = useCallback(() => {
@@ -317,6 +376,7 @@ export default function Page() {
           }}
         />
       )}
+      <DataDownloadDialog open={downloadOpen} language={language} onClose={() => setDownloadOpen(false)} />
 
       <div className="station">
         <header className="bar">
@@ -342,6 +402,9 @@ export default function Page() {
             </button>
           )}
           <div className="header-tools">
+            <button type="button" className="btn header-btn download-trigger" onClick={() => setDownloadOpen(true)}>
+              {tr(language, 'Export', '下载')}
+            </button>
             <button
               type="button"
               className={`theme-switch ${resolvedTheme === 'night' ? 'night' : 'day'}`}
@@ -382,6 +445,7 @@ export default function Page() {
         <div className="map-area tour-target-map">
           <GeoMap
             quakes={mapQuakes}
+            typhoons={showTyphoons ? typhoons : []}
             onHover={setHover}
             onSelect={handleSelectQuake}
             onProbe={handleProbe}
@@ -396,6 +460,8 @@ export default function Page() {
             mapMode={mapMode}
             theme={resolvedTheme}
             language={language}
+            selectedTyphoonId={selectedTyphoon?.id ?? null}
+            onSelectTyphoon={handleSelectTyphoon}
           />
         </div>
 
@@ -423,6 +489,13 @@ export default function Page() {
           history={history}
           forecast={localForecast}
           language={language}
+          typhoons={typhoons}
+          typhoonLoading={typhoonLoading}
+          typhoonError={typhoonError}
+          showTyphoons={showTyphoons}
+          onShowTyphoons={handleShowTyphoons}
+          selectedTyphoon={selectedTyphoon}
+          onSelectTyphoon={handleSelectTyphoon}
         />
 
         <Timeline

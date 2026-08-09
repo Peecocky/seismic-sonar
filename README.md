@@ -20,7 +20,7 @@ probe to an event, the louder its voice.
 
 - USGS M4.5+ earthquakes fetched at runtime for rolling 30, 90, 180, and 360-day windows
 - Custom date-range earthquake export in CSV, formatted JSON, or GeoJSON
-- Tropical cyclones observed during the past 30 days, with observed tracks and the latest China forecast track
+- A separate switchable typhoon globe for systems observed during the past 30 days, with observed tracks and the latest China forecast track
 - Fields: `id, mag, place, time, lon, lat, depth`
 
 Data source:
@@ -78,6 +78,8 @@ app/
 components/
   DataDownloadDialog.tsx Custom range fetch, preview, and export
   GeoMap.tsx        Projection, probe ring, quake markers, tooltip
+  TyphoonPanel.tsx  Dedicated typhoon status and forecast interface
+  TyphoonTimeline.tsx Observed and forecast activity timeline
   Timeline.tsx      Magnitude-vs-time + d3-brush
   SidePanel.tsx     Controls, spectrum, nearest probe list, selection detail
   Intro.tsx         Splash overlay for initial user gesture

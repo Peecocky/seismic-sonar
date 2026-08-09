@@ -7,6 +7,8 @@ import SidePanel from '@/components/SidePanel';
 import Intro from '@/components/Intro';
 import InstructionOverlay from '@/components/InstructionOverlay';
 import DataDownloadDialog from '@/components/DataDownloadDialog';
+import TyphoonPanel from '@/components/TyphoonPanel';
+import TyphoonTimeline from '@/components/TyphoonTimeline';
 import { loadQuakes } from '@/lib/data';
 import type { DataWindowDays, Quake } from '@/lib/data';
 import { buildProbeDistances } from '@/lib/globe';
@@ -19,6 +21,7 @@ import { loadTyphoons } from '@/lib/typhoon';
 import type { Typhoon } from '@/lib/typhoon';
 
 export default function Page() {
+  const [dataMode, setDataMode] = useState<'seismic' | 'typhoon'>('seismic');
   const [quakes, setQuakes] = useState<Quake[]>([]);
   const [forecastQuakes, setForecastQuakes] = useState<Quake[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +29,6 @@ export default function Page() {
   const [typhoons, setTyphoons] = useState<Typhoon[]>([]);
   const [typhoonLoading, setTyphoonLoading] = useState(true);
   const [typhoonError, setTyphoonError] = useState<string | null>(null);
-  const [showTyphoons, setShowTyphoons] = useState(true);
   const [selectedTyphoon, setSelectedTyphoon] = useState<Typhoon | null>(null);
 
   const [introOpen, setIntroOpen] = useState(true);
@@ -106,7 +108,11 @@ export default function Page() {
         if (cancelled) return;
         setTyphoons(result);
         setTyphoonError(null);
-        setSelectedTyphoon((current) => (current ? result.find((item) => item.id === current.id) ?? null : null));
+        setSelectedTyphoon((current) =>
+          current
+            ? result.find((item) => item.id === current.id) ?? null
+            : result.find((item) => item.isActive) ?? result[0] ?? null
+        );
       } catch (error) {
         if (!cancelled) setTyphoonError(String(error));
       } finally {
@@ -151,18 +157,18 @@ export default function Page() {
   }, [hover, selected, visibleQuakes]);
 
   const focusTarget = useMemo<GlobeFocusTarget | null>(() => {
-    if (selectedTyphoon && mapMode === '3d') {
+    if (dataMode === 'typhoon' && selectedTyphoon && mapMode === '3d') {
       const center = selectedTyphoon.points[selectedTyphoon.points.length - 1];
       if (center) {
         return {
           id: `typhoon-${selectedTyphoon.id}`,
           latitude: center.lat,
           longitude: center.lon,
-          distance: 7.4,
+          distance: 8.8,
         };
       }
     }
-    if (selected && mapMode === '3d') {
+    if (dataMode === 'seismic' && selected && mapMode === '3d') {
       return {
         id: `quake-${selected.id}`,
         latitude: selected.lat,
@@ -171,7 +177,7 @@ export default function Page() {
       };
     }
     return null;
-  }, [selected, selectedTyphoon, mapMode]);
+  }, [dataMode, selected, selectedTyphoon, mapMode]);
 
   const forecastCenter = probe ?? selected ?? hover;
   const forecastSource = forecastQuakes.length > 0 ? forecastQuakes : quakes;
@@ -264,15 +270,7 @@ export default function Page() {
   }, []);
 
   const handleSelectTyphoon = useCallback((typhoon: Typhoon) => {
-    setShowTyphoons(true);
-    setSelected(null);
-    setHover(null);
     setSelectedTyphoon((current) => (current?.id === typhoon.id ? null : typhoon));
-  }, []);
-
-  const handleShowTyphoons = useCallback((show: boolean) => {
-    setShowTyphoons(show);
-    if (!show) setSelectedTyphoon(null);
   }, []);
 
   const stopPlayback = useCallback(() => {
@@ -282,6 +280,19 @@ export default function Page() {
     }
     setPlaybackRunning(false);
   }, []);
+
+  const switchDataMode = useCallback(
+    (nextMode: 'seismic' | 'typhoon') => {
+      if (nextMode === dataMode) return;
+      stopPlayback();
+      if (nextMode === 'typhoon' && audioRunning) stopAudio();
+      setProbe(null);
+      setProbeLocked(false);
+      setProbeDistances(new Map());
+      setDataMode(nextMode);
+    },
+    [audioRunning, dataMode, stopAudio, stopPlayback]
+  );
 
   const startPlayback = useCallback(() => {
     const playlist = temporalQuakes;
@@ -380,13 +391,23 @@ export default function Page() {
 
       <div className="station">
         <header className="bar">
-          <div>
+          <div className="title-group">
             <div className="title">
-              Seismic <em>Sonar</em>
+              {dataMode === 'seismic' ? <>Seismic <em>Sonar</em></> : <>Typhoon <em>Tracker</em></>}
             </div>
             <div className="sub">
-              {mapMode === '3d' ? tr(language, '3D seismic globe', '3D 地震地球') : tr(language, '2D seismic map', '2D 地震地图')} · USGS M4.5+ · {tr(language, 'local forecast probe', '局部概率探针')} · 360d
+              {dataMode === 'seismic'
+                ? `${mapMode === '3d' ? tr(language, '3D seismic globe', '3D 地震地球') : tr(language, '2D seismic map', '2D 地震地图')} · USGS M4.5+ · ${tr(language, 'local forecast probe', '局部概率探针')} · 360d`
+                : `${mapMode === '3d' ? tr(language, '3D typhoon globe', '3D 台风地球') : tr(language, '2D typhoon map', '2D 台风地图')} · ${tr(language, 'observed track and China forecast', '实况路径与中国预报')} · 30d`}
             </div>
+          </div>
+          <div className="segmented dataset-switch" aria-label={tr(language, 'Dataset', '数据模式')}>
+            <button type="button" className={`segmented-btn ${dataMode === 'seismic' ? 'active' : ''}`} onClick={() => switchDataMode('seismic')}>
+              {tr(language, 'Quakes', '地震')}
+            </button>
+            <button type="button" className={`segmented-btn ${dataMode === 'typhoon' ? 'active' : ''}`} onClick={() => switchDataMode('typhoon')}>
+              {tr(language, 'Typhoons', '台风')}
+            </button>
           </div>
           <div className="segmented header-segmented">
             <button type="button" className={`segmented-btn ${mapMode === '3d' ? 'active' : ''}`} onClick={() => setMapMode('3d')}>
@@ -402,9 +423,11 @@ export default function Page() {
             </button>
           )}
           <div className="header-tools">
-            <button type="button" className="btn header-btn download-trigger" onClick={() => setDownloadOpen(true)}>
-              {tr(language, 'Export', '下载')}
-            </button>
+            {dataMode === 'seismic' && (
+              <button type="button" className="btn header-btn download-trigger" onClick={() => setDownloadOpen(true)}>
+                {tr(language, 'Export', '下载')}
+              </button>
+            )}
             <button
               type="button"
               className={`theme-switch ${resolvedTheme === 'night' ? 'night' : 'day'}`}
@@ -423,36 +446,54 @@ export default function Page() {
                 CN
               </button>
             </div>
-            <button
-              type="button"
-              className="info-btn"
-              onClick={() => {
-                setInstructionStep(0);
-                setInstructionOpen(true);
-              }}
-              aria-label={tr(language, 'Open instructions', '打开教学')}
-            >
-              i
-            </button>
-            <span className="tutorial-hint">{tr(language, 'Tutorial', '教程')}</span>
+            {dataMode === 'seismic' && (
+              <>
+                <button
+                  type="button"
+                  className="info-btn"
+                  onClick={() => {
+                    setInstructionStep(0);
+                    setInstructionOpen(true);
+                  }}
+                  aria-label={tr(language, 'Open instructions', '打开教学')}
+                >
+                  i
+                </button>
+                <span className="tutorial-hint">{tr(language, 'Tutorial', '教程')}</span>
+              </>
+            )}
           </div>
           <div className="right">
             <span className="blink-dot" />
-            <span className="mono-caps">{dataError ? tr(language, 'Feed fallback active', '数据回退中') : audioRunning ? tr(language, 'Audio engaged', '声音已开启') : tr(language, 'Audio standby', '声音待机')}</span>
+            <span className="mono-caps">
+              {dataMode === 'seismic'
+                ? dataError
+                  ? tr(language, 'Feed unavailable', '数据不可用')
+                  : audioRunning
+                    ? tr(language, 'Audio engaged', '声音已开启')
+                    : tr(language, 'Audio standby', '声音待机')
+                : typhoonError
+                  ? tr(language, 'Typhoon feed unavailable', '台风数据不可用')
+                  : typhoonLoading
+                    ? tr(language, 'Loading tracks', '正在加载路径')
+                    : tr(language, `${typhoons.filter((item) => item.isActive).length} active systems`, `${typhoons.filter((item) => item.isActive).length} 个活动台风`)}
+            </span>
           </div>
         </header>
 
         <div className="map-area tour-target-map">
           <GeoMap
-            quakes={mapQuakes}
-            typhoons={showTyphoons ? typhoons : []}
+            key={dataMode}
+            mode={dataMode}
+            quakes={dataMode === 'seismic' ? mapQuakes : []}
+            typhoons={dataMode === 'typhoon' ? typhoons : []}
             onHover={setHover}
             onSelect={handleSelectQuake}
             onProbe={handleProbe}
             onProbeLockChange={setProbeLocked}
             onManualOrbitStart={() => {}}
-            selectedId={selectedId}
-            hoverId={hoverId}
+            selectedId={dataMode === 'seismic' ? selectedId : null}
+            hoverId={dataMode === 'seismic' ? hoverId : null}
             radius={radius}
             probeLocked={probeLocked}
             focusTarget={focusTarget}
@@ -460,12 +501,12 @@ export default function Page() {
             mapMode={mapMode}
             theme={resolvedTheme}
             language={language}
-            selectedTyphoonId={selectedTyphoon?.id ?? null}
+            selectedTyphoonId={dataMode === 'typhoon' ? selectedTyphoon?.id ?? null : null}
             onSelectTyphoon={handleSelectTyphoon}
           />
         </div>
 
-        <SidePanel
+        {dataMode === 'seismic' ? <SidePanel
           quakes={visibleQuakes}
           totalCount={quakes.length}
           hover={hover}
@@ -489,16 +530,16 @@ export default function Page() {
           history={history}
           forecast={localForecast}
           language={language}
+        /> : <TyphoonPanel
           typhoons={typhoons}
-          typhoonLoading={typhoonLoading}
-          typhoonError={typhoonError}
-          showTyphoons={showTyphoons}
-          onShowTyphoons={handleShowTyphoons}
-          selectedTyphoon={selectedTyphoon}
-          onSelectTyphoon={handleSelectTyphoon}
-        />
+          loading={typhoonLoading}
+          error={typhoonError}
+          selected={selectedTyphoon}
+          onSelect={handleSelectTyphoon}
+          language={language}
+        />}
 
-        <Timeline
+        {dataMode === 'seismic' ? <Timeline
           quakes={visibleQuakes}
           allQuakes={magnitudeFilteredQuakes}
           filterMagnitude={filterMagnitude}
@@ -514,7 +555,12 @@ export default function Page() {
           onPlaybackSpeed={setPlaybackSpeed}
           onStepPlayback={stepTimelineSelection}
           language={language}
-        />
+        /> : <TyphoonTimeline
+          typhoons={typhoons}
+          selectedId={selectedTyphoon?.id ?? null}
+          onSelect={handleSelectTyphoon}
+          language={language}
+        />}
       </div>
     </div>
   );

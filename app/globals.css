@@ -130,10 +130,20 @@ select {
   gap: 12px;
 }
 
+.title-group {
+  min-width: 0;
+}
+
+.dataset-switch {
+  flex: 0 0 172px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .header-segmented {
   width: 120px;
-  margin-left: auto;
-  margin-right: 14px;
+  margin-left: 0;
+  margin-right: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .header-btn {
@@ -935,39 +945,15 @@ input[type='range']::-moz-range-thumb {
   color: var(--crimson);
 }
 
-.section-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid rgba(97, 112, 107, 0.16);
-}
-
-.section-title-row h3 {
-  flex: 1;
-  border-bottom: 0;
-}
-
-.layer-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding-bottom: 8px;
-  color: var(--paper-dim);
-  cursor: pointer;
-  font-size: 10px;
-  text-transform: uppercase;
-}
-
-.layer-toggle input {
-  accent-color: var(--phosphor);
-}
-
 .typhoon-list {
   display: grid;
   gap: 6px;
   max-height: 236px;
   overflow-y: auto;
+}
+
+.typhoon-list-full {
+  max-height: 310px;
 }
 
 .typhoon-row {
@@ -1043,6 +1029,131 @@ input[type='range']::-moz-range-thumb {
 .typhoon-legend i.forecast {
   border-top-color: var(--forecast);
   border-top-style: dashed;
+}
+
+.typhoon-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.typhoon-stat-grid > div {
+  display: grid;
+  gap: 3px;
+  padding: 10px 11px;
+  border: 1px solid color-mix(in srgb, var(--typhoon) 22%, transparent);
+  background: color-mix(in srgb, var(--typhoon) 5%, transparent);
+}
+
+.typhoon-stat-grid span,
+.forecast-agency span {
+  color: var(--paper-dim);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.typhoon-stat-grid strong {
+  color: var(--paper);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.typhoon-stat-grid strong.active,
+.typhoon-detail-title > span.active {
+  color: var(--forecast);
+}
+
+.typhoon-detail-title {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border-left: 2px solid var(--typhoon);
+  background: color-mix(in srgb, var(--typhoon) 7%, transparent);
+}
+
+.typhoon-detail-title > span {
+  color: var(--paper-dim);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.typhoon-detail-title strong {
+  color: var(--paper);
+  font-size: 16px;
+}
+
+.typhoon-detail-title small {
+  color: var(--paper-dim);
+  font-size: 10px;
+}
+
+.forecast-agency {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.forecast-agency strong {
+  color: var(--forecast);
+  font-size: 11px;
+}
+
+.forecast-route-list {
+  display: grid;
+}
+
+.forecast-route-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 8px;
+  min-height: 46px;
+  padding: 6px 0;
+}
+
+.forecast-route-row::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed color-mix(in srgb, var(--forecast) 58%, transparent);
+}
+
+.forecast-route-row > i {
+  position: relative;
+  z-index: 1;
+  width: 11px;
+  height: 11px;
+  margin-top: 3px;
+  border: 2px solid var(--forecast);
+  border-radius: 50%;
+  background: var(--panel);
+}
+
+.forecast-route-row > span {
+  display: grid;
+  gap: 2px;
+}
+
+.forecast-route-row strong {
+  color: var(--paper);
+  font-size: 10px;
+}
+
+.forecast-route-row small {
+  color: var(--paper-dim);
+  font-size: 9px;
+}
+
+.forecast-route-row em {
+  color: var(--paper-dim);
+  font-size: 9px;
+  font-style: normal;
+  line-height: 1.45;
+  text-align: right;
 }
 
 .legend-list {
@@ -1227,6 +1338,95 @@ input[type='range']::-moz-range-thumb {
 
 .brush .handle {
   fill: rgba(23, 107, 139, 0.24);
+}
+
+.typhoon-timeline {
+  padding: 12px 22px 8px;
+}
+
+.typhoon-timeline svg {
+  display: block;
+  width: 100%;
+  height: 176px;
+  margin-top: 9px;
+  overflow: visible;
+}
+
+.typhoon-timeline-empty {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: var(--paper-dim);
+  font-size: 11px;
+}
+
+.typhoon-time-row {
+  cursor: pointer;
+}
+
+.typhoon-time-hit {
+  fill: transparent;
+}
+
+.typhoon-time-base,
+.typhoon-time-tick {
+  stroke: color-mix(in srgb, var(--rule) 72%, transparent);
+  stroke-width: 1;
+}
+
+.typhoon-time-observed {
+  stroke: var(--typhoon);
+  stroke-linecap: round;
+  stroke-width: 3;
+}
+
+.typhoon-time-forecast {
+  stroke: var(--forecast);
+  stroke-dasharray: 6 4;
+  stroke-linecap: round;
+  stroke-width: 2.4;
+}
+
+.typhoon-time-row.selected .typhoon-time-observed,
+.typhoon-time-row.selected .typhoon-time-forecast {
+  stroke-width: 5;
+}
+
+.typhoon-time-center {
+  fill: var(--typhoon);
+  stroke: var(--panel);
+  stroke-width: 1.5;
+}
+
+.typhoon-time-center.active {
+  fill: var(--forecast);
+}
+
+.typhoon-time-name,
+.typhoon-time-date,
+.typhoon-now-label {
+  fill: var(--paper-dim);
+  font-family: var(--serif);
+  font-size: 9px;
+}
+
+.typhoon-time-name {
+  text-anchor: end;
+}
+
+.typhoon-time-date {
+  text-anchor: middle;
+}
+
+.typhoon-now-line {
+  stroke: color-mix(in srgb, var(--forecast) 52%, transparent);
+  stroke-dasharray: 3 4;
+  stroke-width: 1;
+}
+
+.typhoon-now-label {
+  fill: var(--forecast);
+  text-anchor: end;
 }
 
 .forecast-grid {
@@ -1710,6 +1910,10 @@ input[type='range']::-moz-range-thumb {
     margin-right: 0;
   }
 
+  .dataset-switch {
+    order: 2;
+  }
+
   .header-tools {
     order: 3;
   }
@@ -1755,6 +1959,12 @@ input[type='range']::-moz-range-thumb {
     margin-left: auto;
   }
 
+  .dataset-switch {
+    order: 2;
+    width: 100%;
+    flex-basis: 100%;
+  }
+
   .bar > .header-btn {
     display: none;
   }
@@ -1793,14 +2003,25 @@ input[type='range']::-moz-range-thumb {
 
   .header-tools {
     width: 100%;
-    display: grid;
-    grid-template-columns: auto minmax(104px, 1fr) auto auto;
+    display: flex;
+    flex-wrap: wrap;
     gap: 6px;
   }
 
   .theme-switch {
-    width: 100%;
-    max-width: 132px;
+    width: 132px;
+  }
+
+  .typhoon-timeline .timeline-label {
+    top: 10px;
+  }
+
+  .typhoon-timeline {
+    overflow-x: auto;
+  }
+
+  .typhoon-timeline svg {
+    min-width: 720px;
   }
 
   .download-layer {

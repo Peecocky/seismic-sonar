@@ -9,8 +9,6 @@ import type { LocalForecast } from '@/lib/forecast';
 import { formatProbability } from '@/lib/forecast';
 import type { Language } from '@/lib/ui';
 import { tr } from '@/lib/ui';
-import type { Typhoon } from '@/lib/typhoon';
-import { typhoonDisplayName } from '@/lib/typhoon';
 
 interface Props {
   quakes: Quake[];
@@ -36,13 +34,6 @@ interface Props {
   history: Quake[];
   forecast: LocalForecast | null;
   language: Language;
-  typhoons: Typhoon[];
-  typhoonLoading: boolean;
-  typhoonError: string | null;
-  showTyphoons: boolean;
-  onShowTyphoons: (show: boolean) => void;
-  selectedTyphoon: Typhoon | null;
-  onSelectTyphoon: (typhoon: Typhoon) => void;
 }
 
 const WINDOW_OPTIONS: Array<{ label: string; value: DataWindowDays }> = [
@@ -88,13 +79,6 @@ export default function SidePanel({
   history,
   forecast,
   language,
-  typhoons,
-  typhoonLoading,
-  typhoonError,
-  showTyphoons,
-  onShowTyphoons,
-  selectedTyphoon,
-  onSelectTyphoon,
 }: Props) {
   const nearest = [...probeDistances.entries()]
     .map(([id, distanceKm]) => {
@@ -140,53 +124,6 @@ export default function SidePanel({
             <span>{formatTime(strongest.time)}</span>
           </button>
         )}
-      </div>
-
-      <div className="section compact typhoon-section">
-        <div className="section-title-row">
-          <h3>{tr(language, 'Typhoons · 30 days', '台风 · 最近 30 天')}</h3>
-          <label className="layer-toggle">
-            <input type="checkbox" checked={showTyphoons} onChange={(event) => onShowTyphoons(event.target.checked)} />
-            <span>{tr(language, 'Map', '地图')}</span>
-          </label>
-        </div>
-        {typhoonLoading ? (
-          <div className="panel-note">{tr(language, 'Loading tropical cyclone tracks...', '正在加载台风路径...')}</div>
-        ) : typhoonError ? (
-          <div className="panel-note error-note">{tr(language, 'Typhoon feed is temporarily unavailable.', '台风数据暂时不可用。')}</div>
-        ) : typhoons.length === 0 ? (
-          <div className="panel-note">{tr(language, 'No tropical cyclones recorded in the last 30 days.', '最近 30 天没有台风记录。')}</div>
-        ) : (
-          <div className="typhoon-list">
-            {typhoons.map((typhoon) => {
-              const latest = typhoon.points[typhoon.points.length - 1];
-              const forecastEnd = typhoon.forecast?.points[typhoon.forecast.points.length - 1];
-              return (
-                <button
-                  key={typhoon.id}
-                  type="button"
-                  className={`typhoon-row ${selectedTyphoon?.id === typhoon.id ? 'selected' : ''}`}
-                  onClick={() => onSelectTyphoon(typhoon)}
-                >
-                  <span className="typhoon-row-head">
-                    <strong>{typhoonDisplayName(typhoon)}</strong>
-                    <i className={typhoon.isActive ? 'active' : ''}>{typhoon.isActive ? tr(language, 'Active', '活动中') : tr(language, 'Ended', '已结束')}</i>
-                  </span>
-                  <span>{latest?.strength || tr(language, 'Tropical cyclone', '热带气旋')} · {latest?.windSpeed ?? '--'} m/s · {latest?.pressure ?? '--'} hPa</span>
-                  {forecastEnd && (
-                    <span className="typhoon-forecast-copy">
-                      {tr(language, 'Forecast', '预报')} · {new Date(forecastEnd.time).toLocaleString()} · {forecastEnd.lat.toFixed(1)}°, {forecastEnd.lon.toFixed(1)}°
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        <div className="typhoon-legend">
-          <span><i className="actual" />{tr(language, 'Observed track', '实况路径')}</span>
-          <span><i className="forecast" />{tr(language, 'China forecast', '中国预报')}</span>
-        </div>
       </div>
 
       <div className="section compact tour-target-filter">

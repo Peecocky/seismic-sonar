@@ -21,6 +21,7 @@ const PIN_LONG_PRESS_MS = 460;
 const PIN_DRAG_CANCEL_PX = 7;
 
 interface GlobeSceneProps {
+  mode: 'seismic' | 'typhoon';
   quakes: Quake[];
   typhoons: Typhoon[];
   hoverId: string | null;
@@ -53,10 +54,12 @@ export default function GlobeScene(props: GlobeSceneProps) {
       </Canvas>
       <div className="globe-hud">
         <div className="mono-caps">
-          {tr(props.language, '3D globe · drag to orbit · long-press to pin sonar · Align returns default view', '3D 地球 · 拖动旋转 · 长按固定声纳 · 对齐回到默认视角')}
+          {props.mode === 'seismic'
+            ? tr(props.language, '3D globe · drag to orbit · long-press to pin sonar · Align returns default view', '3D 地球 · 拖动旋转 · 长按固定声纳 · 对齐回到默认视角')
+            : tr(props.language, 'Typhoon globe · drag to orbit · select a storm to inspect its route', '台风地球 · 拖动旋转 · 选择台风查看完整路径')}
         </div>
       </div>
-      {props.hoverId && (
+      {props.mode === 'seismic' && props.hoverId && (
         <div className="map-hover-hint">
           {tr(props.language, 'Shift-click or hold to pin here', 'Shift 点击或长按可在此固定')}
         </div>
@@ -66,6 +69,7 @@ export default function GlobeScene(props: GlobeSceneProps) {
 }
 
 function SceneContent({
+  mode,
   quakes,
   typhoons,
   hoverId,
@@ -83,6 +87,7 @@ function SceneContent({
   selectedTyphoonId,
   onSelectTyphoon,
 }: GlobeSceneProps) {
+  const probeEnabled = mode === 'seismic';
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const globeRef = useRef<Group | null>(null);
   const [probe, setProbe] = useState<GlobeProbePoint | null>(null);
@@ -92,6 +97,7 @@ function SceneContent({
   const targetCameraPositionRef = useRef(new Vector3(0, 0, 9.2));
   const animatingFocusRef = useRef(false);
   const lastFocusIdRef = useRef<string | null>(null);
+  const alignInitializedRef = useRef(false);
   const pinPressTimerRef = useRef<number | null>(null);
   const pinPressStartRef = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggeredRef = useRef(false);
@@ -110,6 +116,10 @@ function SceneContent({
   }, [focusTarget]);
 
   useEffect(() => {
+    if (!alignInitializedRef.current) {
+      alignInitializedRef.current = true;
+      return;
+    }
     targetQuaternionRef.current.identity();
     targetCameraPositionRef.current.set(0, 0, 9.2);
     controlsRef.current?.target.set(0, 0, 0);
@@ -124,12 +134,14 @@ function SceneContent({
   }, []);
 
   const setProbeState = (nextProbe: GlobeProbePoint | null, locked: boolean) => {
+    if (!probeEnabled) return;
     setProbe(nextProbe);
     onProbeLockChange(locked);
     onProbeChange(nextProbe, nextProbe ? buildProbeDistances(quakes, nextProbe) : new Map());
   };
 
   const updateProbeFromPointer = (event: ThreeEvent<PointerEvent>) => {
+    if (!probeEnabled) return;
     cancelPinPressIfDragged(event.nativeEvent.clientX, event.nativeEvent.clientY);
     if (probeLocked) return;
     setHoveringGlobe(true);
@@ -140,11 +152,13 @@ function SceneContent({
   };
 
   const pinProbeFromPointer = (event: ThreeEvent<PointerEvent | MouseEvent>) => {
+    if (!probeEnabled) return;
     const localPoint = globeRef.current ? globeRef.current.worldToLocal(event.point.clone()) : event.point.clone();
     setProbeState(pointToProbe(localPoint), true);
   };
 
   const pinProbeFromLocalPoint = (localPoint: Vector3) => {
+    if (!probeEnabled) return;
     setProbeState(pointToProbe(localPoint), true);
   };
 
@@ -158,6 +172,7 @@ function SceneContent({
   };
 
   const startPinPress = (event: ThreeEvent<PointerEvent | MouseEvent>) => {
+    if (!probeEnabled) return;
     clearPinPress();
     longPressTriggeredRef.current = false;
     const localPoint = globeRef.current ? globeRef.current.worldToLocal(event.point.clone()) : event.point.clone();
@@ -217,10 +232,12 @@ function SceneContent({
           onPointerUp={clearPinPress}
           onPointerCancel={clearPinPress}
           onPointerMove={(event) => {
+            if (!probeEnabled) return;
             updateProbeFromPointer(event);
           }}
           onPointerLeave={() => {
             clearPinPress();
+            if (!probeEnabled) return;
             if (probeLocked) return;
             setHoveringGlobe(false);
             setProbe(null);
@@ -229,6 +246,7 @@ function SceneContent({
           }}
           onClick={(event) => {
             event.stopPropagation();
+            if (!probeEnabled) return;
             if (event.nativeEvent.shiftKey) {
               pinProbeFromPointer(event);
               return;
@@ -244,7 +262,7 @@ function SceneContent({
           }}
         />
 
-        <EarthquakeMarkers
+        {mode === 'seismic' && <EarthquakeMarkers
           quakes={quakes}
           hoverId={hoverId}
           selectedId={selectedId}
@@ -258,9 +276,9 @@ function SceneContent({
           onPinPressStart={startPinPress}
           onPinPressCancel={clearPinPress}
           shouldSuppressClick={shouldSuppressClick}
-        />
-        <TyphoonTracks typhoons={typhoons} selectedId={selectedTyphoonId} onSelect={onSelectTyphoon} />
-        {probe && <ProbeRings position={probe.position} normal={probe.normal} locked={probeLocked} radiusKm={radiusKm} anchoring={pinPressActive} />}
+        />}
+        {mode === 'typhoon' && <TyphoonTracks typhoons={typhoons} selectedId={selectedTyphoonId} onSelect={onSelectTyphoon} />}
+        {probeEnabled && probe && <ProbeRings position={probe.position} normal={probe.normal} locked={probeLocked} radiusKm={radiusKm} anchoring={pinPressActive} />}
       </group>
 
       <OrbitControls

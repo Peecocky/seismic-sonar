@@ -13,6 +13,7 @@ import type { Language } from '@/lib/ui';
 import { tr } from '@/lib/ui';
 
 interface FlatMapProps {
+  mode: 'seismic' | 'typhoon';
   quakes: Quake[];
   typhoons: Typhoon[];
   onHover: (quake: Quake | null) => void;
@@ -58,6 +59,7 @@ const PIN_LONG_PRESS_MS = 460;
 const PIN_DRAG_CANCEL_PX = 7;
 
 export default function FlatMap({
+  mode,
   quakes,
   typhoons,
   onHover,
@@ -394,6 +396,7 @@ export default function FlatMap({
   };
 
   const updateProbeFromEvent = (event: ReactMouseEvent<SVGSVGElement> | ReactPointerEvent<SVGSVGElement>) => {
+    if (mode !== 'seismic') return null;
     const nextProbe = getProbeFromEvent(event);
     if (!nextProbe) return null;
     setProbe(nextProbe);
@@ -402,6 +405,7 @@ export default function FlatMap({
   };
 
   const pinProbeAt = (lat: number, lon: number) => {
+    if (mode !== 'seismic') return;
     const nextProbe = pointToProbe(latLonToVector3(lat, lon));
     setProbe(nextProbe);
     onProbeLockChange(true);
@@ -418,6 +422,7 @@ export default function FlatMap({
   };
 
   const startPinPress = (clientX: number, clientY: number, pin: () => void) => {
+    if (mode !== 'seismic') return;
     clearPinPress();
     longPressTriggeredRef.current = false;
     pinPressStartRef.current = { x: clientX, y: clientY };
@@ -468,6 +473,7 @@ export default function FlatMap({
         width={size.width}
         height={size.height}
         onPointerDown={(event) => {
+          if (mode !== 'seismic') return;
           if (event.button !== 0) return;
           const nextProbe = getProbeFromEvent(event);
           if (!nextProbe) return;
@@ -480,6 +486,7 @@ export default function FlatMap({
         onPointerUp={clearPinPress}
         onPointerCancel={clearPinPress}
         onClick={(event) => {
+          if (mode !== 'seismic') return;
           if (shouldSuppressClick()) return;
           if (event.shiftKey) {
             const nextProbe = updateProbeFromEvent(event);
@@ -504,12 +511,14 @@ export default function FlatMap({
           if (!nextLocked) setProbe(null);
         }}
         onMouseMove={(event) => {
+          if (mode !== 'seismic') return;
           cancelPinPressIfDragged(event.clientX, event.clientY);
           if (alarmSoundHits.length > 0) return;
           if (probeLocked) return;
           updateProbeFromEvent(event);
         }}
         onMouseLeave={() => {
+          if (mode !== 'seismic') return;
           clearPinPress();
           if (alarmSoundHits.length > 0) return;
           if (probeLocked) return;
@@ -528,11 +537,11 @@ export default function FlatMap({
               {forecast && <path d={path(forecast as any) || ''} className="typhoon-forecast-track" />}
             </g>
           ))}
-          {alarmCircles.map(({ zone, circle }) => (
+          {mode === 'seismic' && alarmCircles.map(({ zone, circle }) => (
             <path key={zone.id} d={path(circle as any) || ''} className="live-alarm-zone" />
           ))}
-          {probeCircle && <path d={path(probeCircle as any) || ''} className={`flat-probe-radius ${probeLocked ? 'locked' : ''}`} />}
-          {probePoint && pinPressActive && (
+          {mode === 'seismic' && probeCircle && <path d={path(probeCircle as any) || ''} className={`flat-probe-radius ${probeLocked ? 'locked' : ''}`} />}
+          {mode === 'seismic' && probePoint && pinPressActive && (
             <g className="flat-probe-anchor-pulse" transform={`translate(${probePoint[0]},${probePoint[1]})`}>
               <circle r={18} />
               <circle r={31} />
@@ -649,14 +658,14 @@ export default function FlatMap({
         </g>
       </svg>
 
-      {!monitorOpen && (
+      {mode === 'seismic' && !monitorOpen && (
         <button type="button" className={`live-monitor-fab ${activeAlarmHits.length > 0 ? 'alerting' : ''}`} onClick={() => setMonitorOpen(true)}>
           <span>{activeAlarmHits.length > 0 ? activeAlarmHits.length : liveQuakes.length}</span>
           {tr(language, 'Live', '监控')}
         </button>
       )}
 
-      {monitorOpen && <div className="live-monitor">
+      {mode === 'seismic' && monitorOpen && <div className="live-monitor">
         <div className="live-monitor-head">
           <div>
             <strong>{tr(language, 'Live Monitor', '实时监控')}</strong>
@@ -724,9 +733,13 @@ export default function FlatMap({
       </div>}
 
       <div className="globe-hud">
-        <div className="mono-caps">{tr(language, '2D map mode · wheel to zoom · long-press to pin probe', '2D 地图 · 滚轮缩放 · 长按固定探针')}</div>
+        <div className="mono-caps">
+          {mode === 'seismic'
+            ? tr(language, '2D map mode · wheel to zoom · long-press to pin probe', '2D 地图 · 滚轮缩放 · 长按固定探针')
+            : tr(language, '2D typhoon map · wheel to zoom · select a storm center', '2D 台风地图 · 滚轮缩放 · 选择台风中心')}
+        </div>
       </div>
-      {hoverId && <div className="map-hover-hint">{tr(language, 'Shift-click or hold to pin here', 'Shift 点击或长按可在此固定')}</div>}
+      {mode === 'seismic' && hoverId && <div className="map-hover-hint">{tr(language, 'Shift-click or hold to pin here', 'Shift 点击或长按可在此固定')}</div>}
     </div>
   );
 }

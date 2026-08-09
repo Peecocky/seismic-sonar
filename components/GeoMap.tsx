@@ -8,6 +8,7 @@ import GlobeScene from '@/components/globe/GlobeScene';
 import FlatMap from '@/components/FlatMap';
 
 interface Props {
+  mode: 'seismic' | 'typhoon';
   quakes: Quake[];
   typhoons: Typhoon[];
   onHover: (q: Quake | null) => void;
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export default function GeoMap({
+  mode,
   quakes,
   typhoons,
   onHover,
@@ -51,6 +53,7 @@ export default function GeoMap({
   if (mapMode === '2d') {
     return (
       <FlatMap
+        mode={mode}
         quakes={quakes}
         typhoons={typhoons}
         onHover={onHover}
@@ -70,6 +73,7 @@ export default function GeoMap({
 
   return (
     <GlobeScene
+      mode={mode}
       quakes={quakes}
       typhoons={typhoons}
       hoverId={hoverId}

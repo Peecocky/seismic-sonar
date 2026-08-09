@@ -1921,6 +1921,22 @@ input[type='range']::-moz-range-thumb {
   transform: translate(12px, -8px);
 }
 
+.earthquake-marker-card {
+  width: 190px;
+  min-width: 190px;
+}
+
+.earthquake-marker-card .marker-card-place,
+.earthquake-marker-card .marker-card-meta {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .earthquake-marker-card {
+    transform: translate(-12px, -8px);
+  }
+}
+
 .app-shell[data-theme='night'] .marker-card {
   border-color: rgba(88, 212, 245, 0.28);
   background: rgba(7, 19, 24, 0.9);

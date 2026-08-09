@@ -12,7 +12,6 @@ import type { GlobeFocusTarget, GlobeProbePoint } from '@/lib/globe';
 import {
   buildProbeDistances,
   globeQuaternionForTarget,
-  globeQuaternionForTargetUpright,
   pointToProbe,
 } from '@/lib/globe';
 import type { Language, ResolvedTheme } from '@/lib/ui';
@@ -104,7 +103,7 @@ function SceneContent({
   const targetCameraPositionRef = useRef(new Vector3(0, 0, 9.2));
   const stagingCameraPositionRef = useRef(new Vector3(0, 0, 9.2));
   const animatingFocusRef = useRef(false);
-  const focusPhaseRef = useRef<'idle' | 'rotate' | 'zoom'>('idle');
+  const focusPhaseRef = useRef<'idle' | 'rotate' | 'zoom' | 'reset'>('idle');
   const lastFocusIdRef = useRef<string | null>(null);
   const alignInitializedRef = useRef(false);
   const pinPressTimerRef = useRef<number | null>(null);
@@ -116,11 +115,7 @@ function SceneContent({
   useEffect(() => {
     const nextFocusId = focusTarget?.id ?? null;
     if (nextFocusId !== lastFocusIdRef.current) {
-      const targetQuaternion = focusTarget
-        ? mode === 'typhoon'
-          ? globeQuaternionForTargetUpright(focusTarget)
-          : globeQuaternionForTarget(focusTarget)
-        : new Quaternion();
+      const targetQuaternion = focusTarget ? globeQuaternionForTarget(focusTarget) : new Quaternion();
       const requestedDistance = focusTarget?.distance ?? 9.2;
       const targetDistance = mode === 'typhoon' && window.innerWidth < 700
         ? Math.max(requestedDistance, 8.7)
@@ -129,7 +124,7 @@ function SceneContent({
       targetCameraPositionRef.current.set(0, 0, targetDistance);
       controlsRef.current?.target.set(0, 0, 0);
       animatingFocusRef.current = true;
-      focusPhaseRef.current = mode === 'typhoon' && focusTarget ? 'rotate' : 'zoom';
+      focusPhaseRef.current = focusTarget ? 'rotate' : 'reset';
       lastFocusIdRef.current = nextFocusId;
     }
   }, [focusTarget, mode]);
@@ -144,7 +139,7 @@ function SceneContent({
     controlsRef.current?.target.set(0, 0, 0);
     lastFocusIdRef.current = null;
     animatingFocusRef.current = true;
-    focusPhaseRef.current = 'zoom';
+    focusPhaseRef.current = 'reset';
   }, [alignSignal]);
 
   useEffect(() => {
@@ -221,7 +216,7 @@ function SceneContent({
 
   useFrame((_, delta) => {
     const focusPhase = focusPhaseRef.current;
-    const shouldRotate = mode !== 'typhoon' || focusPhase === 'rotate';
+    const shouldRotate = focusPhase === 'rotate' || focusPhase === 'reset';
     if (globeRef.current && animatingFocusRef.current && shouldRotate) {
       globeRef.current.quaternion.slerp(targetQuaternionRef.current, 1 - Math.exp(-delta * 2.6));
     }
@@ -230,7 +225,7 @@ function SceneContent({
     if (!controls) return;
 
     if (animatingFocusRef.current) {
-      const cameraTarget = mode === 'typhoon' && focusPhase === 'rotate'
+      const cameraTarget = focusPhase === 'rotate'
         ? stagingCameraPositionRef.current
         : targetCameraPositionRef.current;
       camera.position.lerp(cameraTarget, 1 - Math.exp(-delta * 3));
@@ -241,7 +236,7 @@ function SceneContent({
         : true;
       const distanceDone = camera.position.distanceTo(cameraTarget) < 0.025;
       if (quaternionDone && distanceDone) {
-        if (mode === 'typhoon' && focusPhase === 'rotate') {
+        if (focusPhase === 'rotate') {
           globeRef.current?.quaternion.copy(targetQuaternionRef.current);
           focusPhaseRef.current = 'zoom';
         } else {

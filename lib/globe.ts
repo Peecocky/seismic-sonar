@@ -81,11 +81,6 @@ export function quakeMarkerScale(magnitude: number) {
 }
 
 export function globeQuaternionForTarget(target: GlobeFocusTarget) {
-  const point = latLonToVector3(target.latitude, target.longitude, 1).normalize();
-  return new Quaternion().setFromUnitVectors(point, new Vector3(0, 0, 1));
-}
-
-export function globeQuaternionForTargetUpright(target: GlobeFocusTarget) {
   const longitudeRotation = new Quaternion().setFromAxisAngle(
     new Vector3(0, 1, 0),
     -((target.longitude + 90) * Math.PI) / 180

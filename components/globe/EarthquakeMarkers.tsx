@@ -129,8 +129,8 @@ export default function EarthquakeMarkers({
             </mesh>
 
             {selected && (
-              <Html position={[0.28, 0.18, 0]} distanceFactor={12}>
-                <div className="marker-card">
+              <Html position={[0.28, 0.18, 0]} distanceFactor={3}>
+                <div className="marker-card earthquake-marker-card">
                   <div className="marker-card-mag">M{quake.mag.toFixed(1)}</div>
                   <div className="marker-card-place">{quake.place}</div>
                   <div className="marker-card-meta">Depth {quake.depth.toFixed(0)} km</div>

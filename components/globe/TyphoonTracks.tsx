@@ -5,35 +5,42 @@ import { Html, Line } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import type { Typhoon, TyphoonPoint } from '@/lib/typhoon';
-import { typhoonDisplayName } from '@/lib/typhoon';
+import { typhoonDisplayName, typhoonLevel, typhoonLevelColor, typhoonTrackAtTime } from '@/lib/typhoon';
 import { EARTH_RADIUS, interpolateLatLon, latLonToVector3 } from '@/lib/globe';
 
 interface Props {
   typhoons: Typhoon[];
   selectedId: string | null;
   onSelect: (typhoon: Typhoon) => void;
+  displayTime: number | null;
 }
 
 const TRACK_RADIUS = EARTH_RADIUS + 0.052;
 const CENTER_RADIUS = EARTH_RADIUS + 0.066;
 
-export default function TyphoonTracks({ typhoons, selectedId, onSelect }: Props) {
+export default function TyphoonTracks({ typhoons, selectedId, onSelect, displayTime }: Props) {
   const tracks = useMemo(
     () =>
-      typhoons.map((typhoon) => ({
-        typhoon,
-        actual: buildArcPoints(typhoon.points),
-        forecast: buildArcPoints(typhoon.forecast?.points ?? []),
-        center: latestCenter(typhoon),
-      })),
-    [typhoons]
+      typhoons.map((typhoon) => {
+        const state = typhoonTrackAtTime(typhoon, displayTime);
+        return {
+          typhoon,
+          actual: buildArcPoints(state.points),
+          forecast: displayTime === null ? buildArcPoints(typhoon.forecast?.points ?? []) : [],
+          center: state.center
+            ? latLonToVector3(state.center.lat, state.center.lon, CENTER_RADIUS)
+            : null,
+          centerPoint: state.center,
+        };
+      }),
+    [displayTime, typhoons]
   );
 
   return (
     <group>
-      {tracks.map(({ typhoon, actual, forecast, center }) => {
+      {tracks.map(({ typhoon, actual, forecast, center, centerPoint }) => {
         const selected = typhoon.id === selectedId;
-        const centerPoint = typhoon.points[typhoon.points.length - 1];
+        const markerScale = 0.032 + Math.max(0, (centerPoint?.power ?? 7) - 7) * 0.002;
         return (
           <group key={typhoon.id}>
             {actual.length > 1 && (
@@ -51,32 +58,36 @@ export default function TyphoonTracks({ typhoons, selectedId, onSelect }: Props)
                 opacity={0.92}
               />
             )}
-            <mesh
-              position={center}
-              scale={selected ? 0.048 : 0.036}
-              onClick={(event: ThreeEvent<MouseEvent>) => {
-                event.stopPropagation();
-                onSelect(typhoon);
-              }}
-            >
-              <sphereGeometry args={[1, 20, 20]} />
-              <meshBasicMaterial color={typhoon.isActive ? '#f05a78' : '#15a6b8'} transparent opacity={0.96} side={2} />
-            </mesh>
-            <mesh
-              position={center}
-              scale={0.12}
-              onClick={(event: ThreeEvent<MouseEvent>) => {
-                event.stopPropagation();
-                onSelect(typhoon);
-              }}
-            >
-              <sphereGeometry args={[1, 12, 12]} />
-              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-            </mesh>
-            {selected && centerPoint && (
+            {center && centerPoint && (
+              <>
+                <mesh
+                  position={center}
+                  scale={selected ? markerScale * 1.35 : markerScale}
+                  onClick={(event: ThreeEvent<MouseEvent>) => {
+                    event.stopPropagation();
+                    onSelect(typhoon);
+                  }}
+                >
+                  <sphereGeometry args={[1, 20, 20]} />
+                  <meshBasicMaterial color={typhoonLevelColor(centerPoint.power)} transparent opacity={0.98} side={2} />
+                </mesh>
+                <mesh
+                  position={center}
+                  scale={0.12}
+                  onClick={(event: ThreeEvent<MouseEvent>) => {
+                    event.stopPropagation();
+                    onSelect(typhoon);
+                  }}
+                >
+                  <sphereGeometry args={[1, 12, 12]} />
+                  <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+                </mesh>
+              </>
+            )}
+            {selected && center && centerPoint && (
               <Html position={center.clone().multiplyScalar(1.035)} distanceFactor={4}>
                 <div className="marker-card typhoon-marker-card">
-                  <div className="marker-card-mag">{typhoonDisplayName(typhoon)}</div>
+                  <div className="marker-card-mag">{typhoonDisplayName(typhoon)} · {typhoonLevel(centerPoint)}</div>
                   <div className="marker-card-place">{centerPoint.strength || 'Tropical cyclone'}</div>
                   <div className="marker-card-meta">{centerPoint.windSpeed ?? '--'} m/s · {centerPoint.pressure ?? '--'} hPa</div>
                   <div className="marker-card-meta">{new Date(centerPoint.time).toUTCString()}</div>
@@ -109,9 +120,4 @@ function buildArcPoints(points: TyphoonPoint[]) {
   const last = points[points.length - 1];
   output.push(latLonToVector3(last.lat, last.lon, TRACK_RADIUS));
   return output;
-}
-
-function latestCenter(typhoon: Typhoon) {
-  const latest = typhoon.points[typhoon.points.length - 1];
-  return latLonToVector3(latest.lat, latest.lon, CENTER_RADIUS);
 }

@@ -9,7 +9,12 @@ import { Group, Quaternion, Vector3 } from 'three';
 import type { Quake } from '@/lib/data';
 import type { Typhoon } from '@/lib/typhoon';
 import type { GlobeFocusTarget, GlobeProbePoint } from '@/lib/globe';
-import { buildProbeDistances, globeQuaternionForTarget, pointToProbe } from '@/lib/globe';
+import {
+  buildProbeDistances,
+  globeQuaternionForTarget,
+  globeQuaternionForTargetUpright,
+  pointToProbe,
+} from '@/lib/globe';
 import type { Language, ResolvedTheme } from '@/lib/ui';
 import { tr } from '@/lib/ui';
 import Earth from '@/components/globe/Earth';
@@ -39,6 +44,7 @@ interface GlobeSceneProps {
   language: Language;
   selectedTyphoonId: string | null;
   onSelectTyphoon: (typhoon: Typhoon) => void;
+  typhoonTime: number | null;
 }
 
 export default function GlobeScene(props: GlobeSceneProps) {
@@ -86,6 +92,7 @@ function SceneContent({
   theme,
   selectedTyphoonId,
   onSelectTyphoon,
+  typhoonTime,
 }: GlobeSceneProps) {
   const probeEnabled = mode === 'seismic';
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
@@ -95,7 +102,9 @@ function SceneContent({
   const [hoveringGlobe, setHoveringGlobe] = useState(false);
   const targetQuaternionRef = useRef(new Quaternion());
   const targetCameraPositionRef = useRef(new Vector3(0, 0, 9.2));
+  const stagingCameraPositionRef = useRef(new Vector3(0, 0, 9.2));
   const animatingFocusRef = useRef(false);
+  const focusPhaseRef = useRef<'idle' | 'rotate' | 'zoom'>('idle');
   const lastFocusIdRef = useRef<string | null>(null);
   const alignInitializedRef = useRef(false);
   const pinPressTimerRef = useRef<number | null>(null);
@@ -107,13 +116,23 @@ function SceneContent({
   useEffect(() => {
     const nextFocusId = focusTarget?.id ?? null;
     if (nextFocusId !== lastFocusIdRef.current) {
-      targetQuaternionRef.current.copy(focusTarget ? globeQuaternionForTarget(focusTarget) : new Quaternion());
-      targetCameraPositionRef.current.set(0, 0, focusTarget?.distance ?? 9.2);
+      const targetQuaternion = focusTarget
+        ? mode === 'typhoon'
+          ? globeQuaternionForTargetUpright(focusTarget)
+          : globeQuaternionForTarget(focusTarget)
+        : new Quaternion();
+      const requestedDistance = focusTarget?.distance ?? 9.2;
+      const targetDistance = mode === 'typhoon' && window.innerWidth < 700
+        ? Math.max(requestedDistance, 8.7)
+        : requestedDistance;
+      targetQuaternionRef.current.copy(targetQuaternion);
+      targetCameraPositionRef.current.set(0, 0, targetDistance);
       controlsRef.current?.target.set(0, 0, 0);
       animatingFocusRef.current = true;
+      focusPhaseRef.current = mode === 'typhoon' && focusTarget ? 'rotate' : 'zoom';
       lastFocusIdRef.current = nextFocusId;
     }
-  }, [focusTarget]);
+  }, [focusTarget, mode]);
 
   useEffect(() => {
     if (!alignInitializedRef.current) {
@@ -125,6 +144,7 @@ function SceneContent({
     controlsRef.current?.target.set(0, 0, 0);
     lastFocusIdRef.current = null;
     animatingFocusRef.current = true;
+    focusPhaseRef.current = 'zoom';
   }, [alignSignal]);
 
   useEffect(() => {
@@ -200,7 +220,9 @@ function SceneContent({
   };
 
   useFrame((_, delta) => {
-    if (globeRef.current && animatingFocusRef.current) {
+    const focusPhase = focusPhaseRef.current;
+    const shouldRotate = mode !== 'typhoon' || focusPhase === 'rotate';
+    if (globeRef.current && animatingFocusRef.current && shouldRotate) {
       globeRef.current.quaternion.slerp(targetQuaternionRef.current, 1 - Math.exp(-delta * 2.6));
     }
 
@@ -208,15 +230,24 @@ function SceneContent({
     if (!controls) return;
 
     if (animatingFocusRef.current) {
-      camera.position.lerp(targetCameraPositionRef.current, 1 - Math.exp(-delta * 3));
+      const cameraTarget = mode === 'typhoon' && focusPhase === 'rotate'
+        ? stagingCameraPositionRef.current
+        : targetCameraPositionRef.current;
+      camera.position.lerp(cameraTarget, 1 - Math.exp(-delta * 3));
       camera.lookAt(controls.target);
 
       const quaternionDone = globeRef.current
         ? 1 - Math.abs(globeRef.current.quaternion.dot(targetQuaternionRef.current)) < 0.002
         : true;
-      const distanceDone = camera.position.distanceTo(targetCameraPositionRef.current) < 0.025;
+      const distanceDone = camera.position.distanceTo(cameraTarget) < 0.025;
       if (quaternionDone && distanceDone) {
-        animatingFocusRef.current = false;
+        if (mode === 'typhoon' && focusPhase === 'rotate') {
+          globeRef.current?.quaternion.copy(targetQuaternionRef.current);
+          focusPhaseRef.current = 'zoom';
+        } else {
+          animatingFocusRef.current = false;
+          focusPhaseRef.current = 'idle';
+        }
       }
     }
 
@@ -277,7 +308,7 @@ function SceneContent({
           onPinPressCancel={clearPinPress}
           shouldSuppressClick={shouldSuppressClick}
         />}
-        {mode === 'typhoon' && <TyphoonTracks typhoons={typhoons} selectedId={selectedTyphoonId} onSelect={onSelectTyphoon} />}
+        {mode === 'typhoon' && <TyphoonTracks typhoons={typhoons} selectedId={selectedTyphoonId} onSelect={onSelectTyphoon} displayTime={typhoonTime} />}
         {probeEnabled && probe && <ProbeRings position={probe.position} normal={probe.normal} locked={probeLocked} radiusKm={radiusKm} anchoring={pinPressActive} />}
       </group>
 
@@ -293,6 +324,7 @@ function SceneContent({
           clearPinPress();
           setInteracting(true);
           animatingFocusRef.current = false;
+          focusPhaseRef.current = 'idle';
           onManualOrbitStart();
         }}
         onEnd={() => setInteracting(false)}

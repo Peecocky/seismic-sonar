@@ -85,6 +85,18 @@ export function globeQuaternionForTarget(target: GlobeFocusTarget) {
   return new Quaternion().setFromUnitVectors(point, new Vector3(0, 0, 1));
 }
 
+export function globeQuaternionForTargetUpright(target: GlobeFocusTarget) {
+  const longitudeRotation = new Quaternion().setFromAxisAngle(
+    new Vector3(0, 1, 0),
+    -((target.longitude + 90) * Math.PI) / 180
+  );
+  const latitudeRotation = new Quaternion().setFromAxisAngle(
+    new Vector3(1, 0, 0),
+    (target.latitude * Math.PI) / 180
+  );
+  return latitudeRotation.multiply(longitudeRotation);
+}
+
 export function quakeMarkerColor(magnitude: number, active: boolean) {
   if (active) return '#58d4f5';
   const t = clamp((magnitude - 4.5) / (7.8 - 4.5), 0, 1);

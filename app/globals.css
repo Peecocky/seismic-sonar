@@ -385,6 +385,19 @@ select {
   animation: typhoonPulse 1.8s ease-out infinite;
 }
 
+.typhoon-center-level {
+  fill: #ffffff;
+  stroke: rgba(5, 20, 24, 0.86);
+  stroke-width: 2.5px;
+  paint-order: stroke;
+  pointer-events: none;
+  text-anchor: middle;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
 @keyframes typhoonPulse {
   0% { opacity: 0.9; transform: scale(0.45); }
   80%, 100% { opacity: 0; transform: scale(1.35); }
@@ -1006,6 +1019,25 @@ input[type='range']::-moz-range-thumb {
   color: var(--forecast);
 }
 
+.typhoon-level-pill {
+  display: inline-flex;
+  align-items: center;
+  min-width: 27px;
+  margin-right: 6px;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--level-color) 72%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--level-color) 12%, transparent);
+  color: var(--level-color);
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1.25;
+}
+
+.typhoon-force {
+  font-weight: 700;
+}
+
 .typhoon-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1344,6 +1376,76 @@ input[type='range']::-moz-range-thumb {
   padding: 12px 22px 8px;
 }
 
+.typhoon-timeline .timeline-label {
+  right: 570px;
+}
+
+.typhoon-playback-controls {
+  position: absolute;
+  top: 7px;
+  right: 22px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 530px;
+  max-width: calc(100% - 44px);
+}
+
+.typhoon-playback-controls button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--paper-dim);
+  cursor: pointer;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.typhoon-playback-controls button:hover,
+.typhoon-playback-controls button.active {
+  border-color: color-mix(in srgb, var(--typhoon) 62%, transparent);
+  color: var(--paper);
+}
+
+.typhoon-playback-controls .live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.typhoon-playback-controls .live i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--paper-dim);
+}
+
+.typhoon-playback-controls .live.active i {
+  background: var(--forecast);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--forecast) 18%, transparent);
+}
+
+.typhoon-playback-controls input {
+  min-width: 90px;
+  flex: 1;
+  accent-color: var(--typhoon);
+}
+
+.typhoon-playback-controls > strong {
+  width: 114px;
+  overflow: hidden;
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .typhoon-timeline svg {
   display: block;
   width: 100%;
@@ -1422,6 +1524,12 @@ input[type='range']::-moz-range-thumb {
   stroke: color-mix(in srgb, var(--forecast) 52%, transparent);
   stroke-dasharray: 3 4;
   stroke-width: 1;
+}
+
+.typhoon-playhead {
+  stroke: var(--paper);
+  stroke-width: 1.2;
+  pointer-events: none;
 }
 
 .typhoon-now-label {
@@ -2014,13 +2122,29 @@ input[type='range']::-moz-range-thumb {
 
   .typhoon-timeline .timeline-label {
     top: 10px;
+    right: 18px;
   }
 
   .typhoon-timeline {
+    height: 260px;
+    padding-top: 74px;
     overflow-x: auto;
   }
 
+  .typhoon-playback-controls {
+    top: 31px;
+    right: 18px;
+    left: 18px;
+    width: auto;
+    max-width: none;
+  }
+
+  .typhoon-playback-controls > strong {
+    width: 94px;
+  }
+
   .typhoon-timeline svg {
+    margin-top: 0;
     min-width: 720px;
   }
 

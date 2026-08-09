@@ -17,7 +17,7 @@ import { SonarEngine } from '@/lib/audio';
 import { buildLocalForecast } from '@/lib/forecast';
 import type { Language, ResolvedTheme, ThemeMode } from '@/lib/ui';
 import { resolveTheme, tr } from '@/lib/ui';
-import { loadTyphoons } from '@/lib/typhoon';
+import { loadTyphoons, typhoonTrackAtTime } from '@/lib/typhoon';
 import type { Typhoon } from '@/lib/typhoon';
 
 export default function Page() {
@@ -30,6 +30,7 @@ export default function Page() {
   const [typhoonLoading, setTyphoonLoading] = useState(true);
   const [typhoonError, setTyphoonError] = useState<string | null>(null);
   const [selectedTyphoon, setSelectedTyphoon] = useState<Typhoon | null>(null);
+  const [typhoonPlaybackTime, setTyphoonPlaybackTime] = useState<number | null>(null);
 
   const [introOpen, setIntroOpen] = useState(true);
   const [hover, setHover] = useState<Quake | null>(null);
@@ -158,13 +159,13 @@ export default function Page() {
 
   const focusTarget = useMemo<GlobeFocusTarget | null>(() => {
     if (dataMode === 'typhoon' && selectedTyphoon && mapMode === '3d') {
-      const center = selectedTyphoon.points[selectedTyphoon.points.length - 1];
+      const center = typhoonTrackAtTime(selectedTyphoon, typhoonPlaybackTime).center;
       if (center) {
         return {
           id: `typhoon-${selectedTyphoon.id}`,
           latitude: center.lat,
           longitude: center.lon,
-          distance: 8.8,
+          distance: 7.8,
         };
       }
     }
@@ -177,7 +178,7 @@ export default function Page() {
       };
     }
     return null;
-  }, [dataMode, selected, selectedTyphoon, mapMode]);
+  }, [dataMode, selected, selectedTyphoon, mapMode, typhoonPlaybackTime]);
 
   const forecastCenter = probe ?? selected ?? hover;
   const forecastSource = forecastQuakes.length > 0 ? forecastQuakes : quakes;
@@ -289,6 +290,7 @@ export default function Page() {
       setProbe(null);
       setProbeLocked(false);
       setProbeDistances(new Map());
+      setTyphoonPlaybackTime(null);
       setDataMode(nextMode);
     },
     [audioRunning, dataMode, stopAudio, stopPlayback]
@@ -380,7 +382,10 @@ export default function Page() {
         <InstructionOverlay
           language={language}
           step={instructionStep}
-          onNext={() => setInstructionStep((step) => step + 1)}
+          onNext={() => {
+            if (instructionStep === 6) switchDataMode('typhoon');
+            setInstructionStep((step) => step + 1);
+          }}
           onClose={() => {
             setInstructionOpen(false);
             setInstructionStep(0);
@@ -481,7 +486,7 @@ export default function Page() {
           </div>
         </header>
 
-        <div className="map-area tour-target-map">
+        <div className={`map-area tour-target-map ${dataMode === 'typhoon' ? 'tour-target-typhoon-map' : ''}`}>
           <GeoMap
             key={dataMode}
             mode={dataMode}
@@ -503,6 +508,7 @@ export default function Page() {
             language={language}
             selectedTyphoonId={dataMode === 'typhoon' ? selectedTyphoon?.id ?? null : null}
             onSelectTyphoon={handleSelectTyphoon}
+            typhoonTime={typhoonPlaybackTime}
           />
         </div>
 
@@ -537,6 +543,7 @@ export default function Page() {
           selected={selectedTyphoon}
           onSelect={handleSelectTyphoon}
           language={language}
+          playbackTime={typhoonPlaybackTime}
         />}
 
         {dataMode === 'seismic' ? <Timeline
@@ -560,6 +567,8 @@ export default function Page() {
           selectedId={selectedTyphoon?.id ?? null}
           onSelect={handleSelectTyphoon}
           language={language}
+          playbackTime={typhoonPlaybackTime}
+          onPlaybackTime={setTyphoonPlaybackTime}
         />}
       </div>
     </div>

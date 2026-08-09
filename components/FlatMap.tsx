@@ -7,6 +7,7 @@ import { feature } from 'topojson-client';
 import countries from 'world-atlas/countries-110m.json';
 import type { Quake } from '@/lib/data';
 import type { Typhoon } from '@/lib/typhoon';
+import { typhoonLevel, typhoonLevelColor, typhoonTrackAtTime } from '@/lib/typhoon';
 import type { GlobeProbePoint } from '@/lib/globe';
 import { buildProbeDistances, KM_PER_RADIAN, latLonToVector3, pointToProbe, quakeMarkerColor } from '@/lib/globe';
 import type { Language } from '@/lib/ui';
@@ -27,6 +28,7 @@ interface FlatMapProps {
   language: Language;
   selectedTyphoonId: string | null;
   onSelectTyphoon: (typhoon: Typhoon) => void;
+  typhoonTime: number | null;
 }
 
 interface AlarmZone {
@@ -73,6 +75,7 @@ export default function FlatMap({
   language,
   selectedTyphoonId,
   onSelectTyphoon,
+  typhoonTime,
 }: FlatMapProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -366,16 +369,17 @@ export default function FlatMap({
   const typhoonLayers = useMemo(
     () =>
       typhoons.map((typhoon) => {
-        const latest = typhoon.points[typhoon.points.length - 1];
-        const center = latest ? projection([latest.lon, latest.lat]) : null;
+        const state = typhoonTrackAtTime(typhoon, typhoonTime);
+        const center = state.center ? projection([state.center.lon, state.center.lat]) : null;
         return {
           typhoon,
           center,
+          centerPoint: state.center,
           actual: {
             type: 'LineString',
-            coordinates: typhoon.points.map((point) => [point.lon, point.lat]),
+            coordinates: state.points.map((point) => [point.lon, point.lat]),
           },
-          forecast: typhoon.forecast
+          forecast: typhoonTime === null && typhoon.forecast
             ? {
                 type: 'LineString',
                 coordinates: typhoon.forecast.points.map((point) => [point.lon, point.lat]),
@@ -383,7 +387,7 @@ export default function FlatMap({
             : null,
         };
       }),
-    [projection, typhoons]
+    [projection, typhoonTime, typhoons]
   );
 
   const getProbeFromEvent = (event: ReactMouseEvent<SVGSVGElement> | ReactPointerEvent<SVGSVGElement>) => {
@@ -597,8 +601,8 @@ export default function FlatMap({
             );
           })}
 
-          {typhoonLayers.map(({ typhoon, center }) => {
-            if (!center) return null;
+          {typhoonLayers.map(({ typhoon, center, centerPoint }) => {
+            if (!center || !centerPoint) return null;
             const active = typhoon.id === selectedTyphoonId;
             return (
               <g
@@ -612,7 +616,12 @@ export default function FlatMap({
               >
                 {typhoon.isActive && <circle className="typhoon-center-pulse" r={12} />}
                 <circle className="typhoon-center-hit" r={12} />
-                <circle className="typhoon-center-core" r={active ? 6 : 4.5} />
+                <circle
+                  className="typhoon-center-core"
+                  r={active ? 6 : 4.5}
+                  style={{ fill: typhoonLevelColor(centerPoint.power) }}
+                />
+                <text className="typhoon-center-level" y={-9}>{typhoonLevel(centerPoint)}</text>
               </g>
             );
           })}

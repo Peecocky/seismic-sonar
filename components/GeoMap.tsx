@@ -27,6 +27,7 @@ interface Props {
   language: Language;
   selectedTyphoonId: string | null;
   onSelectTyphoon: (typhoon: Typhoon) => void;
+  typhoonTime: number | null;
 }
 
 export default function GeoMap({
@@ -49,6 +50,7 @@ export default function GeoMap({
   language,
   selectedTyphoonId,
   onSelectTyphoon,
+  typhoonTime,
 }: Props) {
   if (mapMode === '2d') {
     return (
@@ -67,6 +69,7 @@ export default function GeoMap({
         language={language}
         selectedTyphoonId={selectedTyphoonId}
         onSelectTyphoon={onSelectTyphoon}
+        typhoonTime={typhoonTime}
       />
     );
   }
@@ -91,6 +94,7 @@ export default function GeoMap({
       language={language}
       selectedTyphoonId={selectedTyphoonId}
       onSelectTyphoon={onSelectTyphoon}
+      typhoonTime={typhoonTime}
     />
   );
 }

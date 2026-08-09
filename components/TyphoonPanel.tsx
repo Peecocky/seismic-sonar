@@ -1,7 +1,8 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import type { Typhoon } from '@/lib/typhoon';
-import { typhoonDisplayName } from '@/lib/typhoon';
+import { typhoonDisplayName, typhoonLevel, typhoonLevelColor, typhoonTrackAtTime } from '@/lib/typhoon';
 import type { Language } from '@/lib/ui';
 import { tr } from '@/lib/ui';
 
@@ -12,16 +13,17 @@ interface Props {
   selected: Typhoon | null;
   onSelect: (typhoon: Typhoon) => void;
   language: Language;
+  playbackTime: number | null;
 }
 
-export default function TyphoonPanel({ typhoons, loading, error, selected, onSelect, language }: Props) {
+export default function TyphoonPanel({ typhoons, loading, error, selected, onSelect, language, playbackTime }: Props) {
   const activeCount = typhoons.filter((typhoon) => typhoon.isActive).length;
-  const latest = selected?.points[selected.points.length - 1] ?? null;
+  const latest = selected ? typhoonTrackAtTime(selected, playbackTime).center : null;
   const forecastPoints = selected?.forecast?.points.slice(1) ?? [];
 
   return (
     <aside className="side typhoon-side">
-      <section className="section compact">
+      <section className="section compact tour-target-typhoon-overview">
         <h3>{tr(language, 'Typhoon Monitor', '台风监测')}</h3>
         <div className="typhoon-stat-grid">
           <div>
@@ -39,7 +41,7 @@ export default function TyphoonPanel({ typhoons, loading, error, selected, onSel
         </div>
       </section>
 
-      <section className="section compact">
+      <section className="section compact tour-target-typhoon-list">
         <h3>{tr(language, 'Recent Systems', '近期台风')}</h3>
         {loading ? (
           <div className="panel-note">{tr(language, 'Loading tropical cyclone tracks...', '正在加载台风路径...')}</div>
@@ -62,7 +64,10 @@ export default function TyphoonPanel({ typhoons, loading, error, selected, onSel
                     <strong>{typhoonDisplayName(typhoon)}</strong>
                     <i className={typhoon.isActive ? 'active' : ''}>{typhoon.isActive ? tr(language, 'Active', '活动中') : tr(language, 'Ended', '已结束')}</i>
                   </span>
-                  <span>{point?.strength || tr(language, 'Tropical cyclone', '热带气旋')} · {point?.windSpeed ?? '--'} m/s · {point?.pressure ?? '--'} hPa</span>
+                  <span>
+                    <b className="typhoon-level-pill" style={{ '--level-color': typhoonLevelColor(point?.power ?? null) } as CSSProperties}>{typhoonLevel(point)}</b>
+                    {point?.strength || tr(language, 'Tropical cyclone', '热带气旋')} · {point?.windSpeed ?? '--'} m/s · {point?.pressure ?? '--'} hPa
+                  </span>
                 </button>
               );
             })}
@@ -70,17 +75,18 @@ export default function TyphoonPanel({ typhoons, loading, error, selected, onSel
         )}
       </section>
 
-      <section className="section compact typhoon-detail">
+      <section className="section compact typhoon-detail tour-target-typhoon-detail">
         <h3>{tr(language, 'Selected System', '所选台风')}</h3>
         {selected && latest ? (
           <>
             <div className="typhoon-detail-title">
               <span className={selected.isActive ? 'active' : ''}>{selected.isActive ? tr(language, 'Active', '活动中') : tr(language, 'Ended', '已结束')}</span>
               <strong>{typhoonDisplayName(selected)}</strong>
-              <small>{latest.strength || tr(language, 'Tropical cyclone', '热带气旋')}</small>
+              <small><b className="typhoon-level-pill" style={{ '--level-color': typhoonLevelColor(latest.power) } as CSSProperties}>{typhoonLevel(latest)}</b>{latest.strength || tr(language, 'Tropical cyclone', '热带气旋')}</small>
             </div>
             <div className="readout">
-              <div className="row"><span className="k">{tr(language, 'Latest position', '最新位置')}</span><span className="v">{formatPosition(latest.lat, latest.lon)}</span></div>
+              <div className="row"><span className="k">{playbackTime === null ? tr(language, 'Latest position', '最新位置') : tr(language, 'Playback position', '回放位置')}</span><span className="v">{formatPosition(latest.lat, latest.lon)}</span></div>
+              <div className="row"><span className="k">{tr(language, 'Wind force', '风力级数')}</span><span className="v typhoon-force" style={{ color: typhoonLevelColor(latest.power) }}>{typhoonLevel(latest)}</span></div>
               <div className="row"><span className="k">{tr(language, 'Wind speed', '最大风速')}</span><span className="v">{latest.windSpeed ?? '--'} m/s</span></div>
               <div className="row"><span className="k">{tr(language, 'Pressure', '中心气压')}</span><span className="v">{latest.pressure ?? '--'} hPa</span></div>
               <div className="row"><span className="k">{tr(language, 'Observed points', '实况点数')}</span><span className="v">{selected.points.length}</span></div>
@@ -88,11 +94,15 @@ export default function TyphoonPanel({ typhoons, loading, error, selected, onSel
             </div>
           </>
         ) : (
-          <div className="panel-note">{tr(language, 'Select a system to inspect its track and forecast.', '选择一个台风以查看路径和预报。')}</div>
+          <div className="panel-note">
+            {selected && playbackTime !== null
+              ? tr(language, 'This system had no observed position at the selected time.', '所选时间还没有该台风的实况位置。')
+              : tr(language, 'Select a system to inspect its track and forecast.', '选择一个台风以查看路径和预报。')}
+          </div>
         )}
       </section>
 
-      <section className="section compact">
+      <section className="section compact tour-target-typhoon-forecast">
         <h3>{tr(language, 'Future Forecast', '未来路径预报')}</h3>
         {selected?.forecast && forecastPoints.length > 0 ? (
           <>
@@ -106,7 +116,7 @@ export default function TyphoonPanel({ typhoons, loading, error, selected, onSel
                   <i />
                   <span>
                     <strong>{formatDate(point.time)}</strong>
-                    <small>{point.strength || tr(language, 'Tropical cyclone', '热带气旋')}</small>
+                    <small>{typhoonLevel(point)} · {point.strength || tr(language, 'Tropical cyclone', '热带气旋')}</small>
                   </span>
                   <em>{point.windSpeed ?? '--'} m/s<br />{formatPosition(point.lat, point.lon)}</em>
                 </div>

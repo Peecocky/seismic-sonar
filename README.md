@@ -40,6 +40,58 @@ Then open <http://localhost:3000>. The first click on *Engage Instrument*
 both dismisses the intro and unlocks the `AudioContext` (browsers require a
 user gesture). Use headphones for best results.
 
+## Search engine visibility (SEO)
+
+The site is set up to be crawled and indexed by Google out of the box:
+
+| What | Where |
+| --- | --- |
+| Site-wide title/description/keywords, canonical URL, Open Graph + Twitter cards, robots directives | `app/layout.tsx` |
+| Per-page metadata and JSON-LD (`WebApplication`, `Dataset`, `FAQPage`) | `app/page.tsx` |
+| Crawlable text page with real prose + `TechArticle`/`BreadcrumbList` JSON-LD | `app/about/page.tsx` |
+| `robots.txt` (allows everything but `/api/`, points at the sitemap) | `app/robots.ts` |
+| `sitemap.xml` | `app/sitemap.ts` |
+| PWA manifest | `app/manifest.ts` |
+| Favicon | `app/icon.svg` |
+| 1200×630 social card, generated at build time | `app/opengraph-image.tsx` |
+| Shared strings and URL helpers | `lib/seo.ts` |
+
+Because the instrument itself is a WebGL canvas with almost no crawlable text,
+`app/page.tsx` also server-renders a screen-reader-only summary (`.sr-only`)
+plus a `<noscript>` fallback, so a crawler that never runs JavaScript still
+receives an accurate description of the page.
+
+### Before you deploy
+
+1. Set the real origin, otherwise canonical URLs and the sitemap point at the
+   fallback domain:
+
+   ```bash
+   NEXT_PUBLIC_SITE_URL=https://your-domain.example
+   ```
+
+   See `.env.example`. On Vercel, `VERCEL_PROJECT_PRODUCTION_URL` is used
+   automatically if the variable is unset.
+
+2. Verify the output after `npm run build && npm start`:
+   <http://localhost:3000/robots.txt>, <http://localhost:3000/sitemap.xml>,
+   <http://localhost:3000/opengraph-image>.
+
+### After you deploy
+
+1. Add the site in [Google Search Console](https://search.google.com/search-console)
+   (domain or URL-prefix property). If you verify with the *HTML tag* method,
+   put the token in `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` and redeploy — the
+   meta tag is emitted for you.
+2. Submit `https://your-domain.example/sitemap.xml` under **Sitemaps**.
+3. Use **URL Inspection → Request indexing** for `/` and `/about` to speed up
+   the first crawl. Indexing normally takes days, not minutes.
+4. Check the rendered page in the [Rich Results Test](https://search.google.com/test/rich-results)
+   and the card in a social debugger to confirm the JSON-LD and OG image parse.
+
+Note that Google decides what to index; these files make the site eligible and
+well-described, they cannot guarantee a ranking.
+
 ## Views
 
 1. **Geo-map** (required special layout) — Natural Earth projection with one
@@ -72,10 +124,17 @@ A quiet pink-noise bed plays constantly so the soundscape never goes dead.
 
 ```
 app/
-  layout.tsx        Root layout
-  page.tsx          Coordinating state for all three views
+  layout.tsx        Root layout + site-wide SEO metadata
+  page.tsx          Server page: metadata, JSON-LD, crawlable summary
+  about/page.tsx    Text description of the project (indexable)
+  robots.ts         robots.txt
+  sitemap.ts        sitemap.xml
+  manifest.ts       Web app manifest
+  opengraph-image.tsx Social card, generated at build time
   globals.css       Monitor-station aesthetic
 components/
+  SeismicSonarApp.tsx Coordinating state for all three views
+  StructuredData.tsx JSON-LD block for search engines
   DataDownloadDialog.tsx Custom range fetch, preview, and export
   GeoMap.tsx        Projection, probe ring, quake markers, tooltip
   TyphoonPanel.tsx  Dedicated typhoon status and forecast interface
@@ -84,6 +143,7 @@ components/
   SidePanel.tsx     Controls, spectrum, nearest probe list, selection detail
   Intro.tsx         Splash overlay for initial user gesture
 lib/
+  seo.ts            Site URL, description and keyword configuration
   audio.ts          SonarEngine (Web Audio)
   data.ts           Loader, types, formatters
   typhoon.ts        Typhoon loader and shared types

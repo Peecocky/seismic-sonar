@@ -1827,7 +1827,8 @@ input[type='range']::-moz-range-thumb {
   box-shadow: 0 24px 80px rgba(25, 45, 44, 0.16);
 }
 
-.intro-card h1 {
+.intro-card h1,
+.intro-card .intro-title {
   margin: 8px 0 14px;
   font-family: var(--serif);
   font-size: clamp(40px, 6vw, 74px);
@@ -1835,7 +1836,8 @@ input[type='range']::-moz-range-thumb {
   font-weight: 800;
 }
 
-.intro-card h1 em {
+.intro-card h1 em,
+.intro-card .intro-title em {
   color: var(--phosphor);
   font-style: italic;
   font-weight: 400;
@@ -2192,4 +2194,108 @@ input[type='range']::-moz-range-thumb {
   .download-table-wrap table {
     min-width: 620px;
   }
+}
+
+/* ── SEO / accessibility ─────────────────────────────────────────────────── */
+
+/* Visible to screen readers and crawlers, out of the visual layout. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.noscript-note {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  font-family: var(--serif);
+  line-height: 1.6;
+}
+
+.noscript-note h2 {
+  margin-bottom: 12px;
+}
+
+/* Text pages (e.g. /about) that sit outside the instrument shell. */
+.doc-page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 64px 24px 96px;
+  font-family: var(--serif);
+  color: var(--paper);
+  line-height: 1.65;
+}
+
+.doc-page h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.1;
+  margin-bottom: 20px;
+}
+
+.doc-page h2 {
+  font-size: 1.35rem;
+  margin: 40px 0 12px;
+  color: var(--phosphor);
+}
+
+.doc-page p,
+.doc-page ul,
+.doc-page ol {
+  margin-bottom: 16px;
+}
+
+.doc-page ul,
+.doc-page ol {
+  padding-left: 1.25rem;
+}
+
+.doc-page li {
+  margin-bottom: 8px;
+}
+
+.doc-page code {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 0.9em;
+  background: var(--phosphor-soft);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.doc-page a {
+  color: var(--phosphor);
+  text-underline-offset: 3px;
+}
+
+.doc-lede {
+  font-size: 1.15rem;
+  color: var(--paper-dim);
+}
+
+.doc-breadcrumb {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  margin-bottom: 28px;
+}
+
+.doc-back {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--rule);
+}
+
+.intro-about-link {
+  color: var(--phosphor);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
 }

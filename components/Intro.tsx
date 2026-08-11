@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { Language } from '@/lib/ui';
 import { tr } from '@/lib/ui';
@@ -28,9 +29,10 @@ export default function Intro({ onEnter, loading, language }: Props) {
     >
       <div className="intro-card">
         <div className="mono-tag">{tr(language, 'Station 7 · producer introduction', '第 7 站 · 作品介绍')}</div>
-        <h1>
+        {/* Not an <h1>: the page's single h1 lives in the crawlable summary in app/page.tsx. */}
+        <p className="intro-title">
           Seismic <em>Sonar</em>
-        </h1>
+        </p>
         <p className="lede">
           {tr(
             language,
@@ -58,7 +60,12 @@ export default function Intro({ onEnter, loading, language }: Props) {
           <button className="intro-enter" onClick={onEnter} disabled={loading}>
             {loading ? tr(language, 'Loading feed', '正在加载') : tr(language, 'Enter instrument', '进入')}
           </button>
-          <div className="intro-note">{tr(language, 'Scroll down to fade this introduction out, or click to enter immediately.', '向下滚动淡出介绍，或点击立即进入。')}</div>
+          <div className="intro-note">
+            {tr(language, 'Scroll down to fade this introduction out, or click to enter immediately.', '向下滚动淡出介绍，或点击立即进入。')}{' '}
+            <Link className="intro-about-link" href="/about">
+              {tr(language, 'How it works', '项目说明')}
+            </Link>
+          </div>
         </div>
 
         <div className="intro-progress">
